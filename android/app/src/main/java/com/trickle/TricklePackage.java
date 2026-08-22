@@ -18,6 +18,8 @@ public class TricklePackage implements ReactPackage {
     public List<NativeModule> createNativeModules(@NonNull ReactApplicationContext reactContext) {
         List<NativeModule> modules = new ArrayList<>();
         modules.add(new TrickleModule(reactContext));
+        modules.add(new PermissionsModule(reactContext));
+        modules.add(new AppsModule(reactContext));
         return modules;
     }
 
