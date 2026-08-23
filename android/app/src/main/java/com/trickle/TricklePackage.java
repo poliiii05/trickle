@@ -20,6 +20,7 @@ public class TricklePackage implements ReactPackage {
         modules.add(new TrickleModule(reactContext));
         modules.add(new PermissionsModule(reactContext));
         modules.add(new AppsModule(reactContext));
+        modules.add(new TrackingModule(reactContext));
         return modules;
     }
 

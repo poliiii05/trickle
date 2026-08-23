@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import * as repo from '../db/limitsRepo';
 import type { AppLimit } from '../db/limitsRepo';
-
+import Tracking from '../native/Tracking';
 interface LimitsState {
   limits: AppLimit[];
   loading: boolean;
@@ -21,10 +21,12 @@ export const useLimitsStore = create<LimitsState>((set, get) => ({
   limits: [],
   loading: false,
 
-  load: async () => {
+    load: async () => {
     set({ loading: true });
     try {
-      set({ limits: await repo.getAllLimits() });
+      const limits = await repo.getAllLimits();
+      set({ limits });
+      await pushToNative(limits);
     } finally {
       set({ loading: false });
     }
@@ -48,3 +50,19 @@ export const useLimitsStore = create<LimitsState>((set, get) => ({
   byPackage: packageName =>
     get().limits.find(l => l.packageName === packageName),
 }));
+
+async function pushToNative(limits: AppLimit[]) {
+  try {
+    await Tracking.syncLimits(
+      limits.map(l => ({
+        packageName: l.packageName,
+        appLabel: l.appLabel,
+        allowanceSeconds: l.allowanceSeconds,
+        lockSeconds: l.lockSeconds,
+        isActive: l.isActive,
+      }))
+    );
+  } catch (e) {
+    console.warn('Sync sa native ay nabigo', e);
+  }
+}

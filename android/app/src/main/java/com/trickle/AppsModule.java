@@ -12,9 +12,10 @@ import android.graphics.Canvas;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.util.Base64;
-
+import android.app.usage.UsageEvents;
+import java.util.HashMap;
+import java.util.Map;
 import androidx.annotation.NonNull;
-
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -88,7 +89,7 @@ public class AppsModule extends ReactContextBaseJavaModule {
 
     // ---------- Usage stats ----------
 
-    @ReactMethod
+        @ReactMethod
     public void getUsageStats(double startMs, double endMs, Promise promise) {
         try {
             Context ctx = getReactApplicationContext();
@@ -99,33 +100,78 @@ public class AppsModule extends ReactContextBaseJavaModule {
                 return;
             }
 
-            Map<String, UsageStats> stats =
-                    usm.queryAndAggregateUsageStats((long) startMs, (long) endMs);
+            long start = (long) startMs;
+            long end = (long) endMs;
+
+            Map<String, Long> totals = new HashMap<>();
+            Map<String, Long> openSince = new HashMap<>();
+            Map<String, Long> lastUsed = new HashMap<>();
+
+            UsageEvents events = usm.queryEvents(start, end);
+            UsageEvents.Event event = new UsageEvents.Event();
+
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event);
+                int type = event.getEventType();
+                long ts = event.getTimeStamp();
+                String pkg = event.getPackageName();
+
+                if (type == UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                    openSince.put(pkg, ts);
+                    lastUsed.put(pkg, ts);
+
+                } else if (type == UsageEvents.Event.MOVE_TO_BACKGROUND) {
+                    closeSession(totals, openSince, pkg, ts);
+                    lastUsed.put(pkg, ts);
+
+                } else if (type == UsageEvents.Event.SCREEN_NON_INTERACTIVE
+                        || type == UsageEvents.Event.KEYGUARD_SHOWN) {
+                    // Na-lock ang screen — isara lahat ng bukas na session
+                    for (String open : new HashMap<>(openSince).keySet()) {
+                        closeSession(totals, openSince, open, ts);
+                    }
+                }
+            }
+
+            // Mga app na bukas pa hanggang sa dulo ng range
+            for (Map.Entry<String, Long> e : new HashMap<>(openSince).entrySet()) {
+                closeSession(totals, openSince, e.getKey(), end);
+            }
 
             PackageManager pm = ctx.getPackageManager();
             WritableArray result = Arguments.createArray();
             String self = ctx.getPackageName();
 
-            for (Map.Entry<String, UsageStats> entry : stats.entrySet()) {
+            for (Map.Entry<String, Long> entry : totals.entrySet()) {
                 String pkg = entry.getKey();
-                UsageStats us = entry.getValue();
-                long fgMillis = us.getTotalTimeInForeground();
+                long millis = entry.getValue();
 
-                if (fgMillis <= 0) continue;
+                if (millis <= 0) continue;
                 if (pkg.equals(self)) continue;
                 if (pm.getLaunchIntentForPackage(pkg) == null) continue;
 
                 WritableMap item = Arguments.createMap();
                 item.putString("packageName", pkg);
                 item.putString("appLabel", resolveLabel(pm, pkg));
-                item.putDouble("totalSeconds", fgMillis / 1000.0);
-                item.putDouble("lastTimeUsed", us.getLastTimeUsed());
+                item.putDouble("totalSeconds", millis / 1000.0);
+                item.putDouble("lastTimeUsed",
+                        lastUsed.containsKey(pkg) ? lastUsed.get(pkg) : 0);
                 result.pushMap(item);
             }
             promise.resolve(result);
+
         } catch (Exception e) {
             promise.reject("USAGE_ERROR", e.getMessage(), e);
         }
+    }
+
+    private void closeSession(Map<String, Long> totals,
+                              Map<String, Long> openSince,
+                              String pkg, long endTs) {
+        Long since = openSince.remove(pkg);
+        if (since == null || endTs <= since) return;
+        long duration = endTs - since;
+        totals.put(pkg, totals.containsKey(pkg) ? totals.get(pkg) + duration : duration);
     }
 
     // ---------- Helpers ----------

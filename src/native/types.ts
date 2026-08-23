@@ -37,3 +37,32 @@ export interface AppsNativeModule {
   getAppIcon(packageName: string): Promise<string | null>;
   getUsageStats(startMs: number, endMs: number): Promise<UsageStat[]>;
 }
+
+export interface LimitState {
+  packageName: string;
+  appLabel: string;
+  allowanceSeconds: number;
+  lockSeconds: number;
+  remainingSeconds: number;
+  lockedUntil: number;
+  isActive: boolean;
+}
+
+export interface SyncLimitInput {
+  packageName: string;
+  appLabel: string;
+  allowanceSeconds: number;
+  lockSeconds: number;
+  isActive: boolean;
+}
+
+export interface TrackingNativeModule {
+  isAccessibilityEnabled(): Promise<boolean>;
+  openAccessibilitySettings(): void;
+  isServiceRunning(): Promise<boolean>;
+  syncLimits(limits: SyncLimitInput[]): Promise<void>;
+  getLimitState(): Promise<string>;
+  setMonitoringEnabled(enabled: boolean): Promise<void>;
+  isMonitoringEnabled(): Promise<boolean>;
+  getCurrentForegroundApp(): Promise<string | null>;
+}

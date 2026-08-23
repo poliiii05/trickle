@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Trickle</string>
+    <string name="accessibility_description">Trickle needs to see which app is in the foreground so it can measure your usage and enforce the limits you set. It never reads or stores screen content.</string>
 </resources>

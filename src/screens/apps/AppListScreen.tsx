@@ -2,14 +2,18 @@ import React, { useEffect } from 'react';
 import { View, Text, FlatList, Pressable, Switch } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useLimitsStore } from '../../store/limitsStore';
-import { isLocked } from '../../db/limitsRepo';
 import { formatDuration, formatCountdown } from '../../utils/time';
 import AppIcon from '../../components/AppIcon';
+import { useLiveLimits } from '../../hooks/useLiveLimits';
 
 export default function AppListScreen() {
   const nav = useNavigation<any>();
   const { limits, load, toggle } = useLimitsStore();
-
+  const live = useLiveLimits();
+  const liveByPkg = React.useMemo(
+    () => new Map(live.map(l => [l.packageName, l])),
+    [live]
+  );
   useEffect(() => {
     load();
     const unsub = nav.addListener('focus', load);
@@ -31,8 +35,12 @@ export default function AppListScreen() {
             </Text>
           </View>
         }
-        renderItem={({ item }) => {
-          const locked = isLocked(item);
+                renderItem={({ item }) => {
+          const state = liveByPkg.get(item.packageName);
+          const remaining = state?.remainingSeconds ?? item.allowanceSeconds;
+          const lockedUntil = state?.lockedUntil ?? 0;
+          const locked = lockedUntil > Date.now();
+
           return (
             <Pressable
               onPress={() =>
@@ -54,14 +62,16 @@ export default function AppListScreen() {
                 <Text numberOfLines={1} style={{ fontSize: 16, color: '#2C2C2A' }}>
                   {item.appLabel}
                 </Text>
-                <Text style={{ fontSize: 13, color: '#6B6B66', marginTop: 2 }}>
-                  {`${formatDuration(item.allowanceSeconds)} kada ${formatDuration(
-                    item.lockSeconds + item.allowanceSeconds,
-                  )}`}
-                </Text>
-                {locked && (
+
+                {locked ? (
                   <Text style={{ fontSize: 13, color: '#D85A30', marginTop: 2 }}>
-                    Naka-lock · {formatCountdown(item.lockedUntil! - Date.now())}
+                    {`Naka-lock · ${formatCountdown(lockedUntil - Date.now())}`}
+                  </Text>
+                ) : (
+                  <Text style={{ fontSize: 13, color: '#6B6B66', marginTop: 2 }}>
+                    {`${formatDuration(remaining)} natitira sa ${formatDuration(
+                      item.allowanceSeconds,
+                    )}`}
                   </Text>
                 )}
               </View>
