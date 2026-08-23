@@ -1,12 +1,39 @@
-import React from 'react';
-import { SafeAreaView, StatusBar } from 'react-native';
-import TodayScreen from './src/screens/home/TodayScreen';
+import React, { useEffect, useState } from 'react';
+import { View, Text, ActivityIndicator, StatusBar } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { initDatabase } from './src/db/schema';
+import Navigation from './src/navigation';
 
 export default function App() {
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    initDatabase()
+      .then(() => setReady(true))
+      .catch(e => setError(String(e)));
+  }, []);
+
+  if (error) {
+    return (
+      <View style={{ flex: 1, padding: 24, justifyContent: 'center' }}>
+        <Text style={{ color: '#A32D2D' }}>Database error: {error}</Text>
+      </View>
+    );
+  }
+
+  if (!ready) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', backgroundColor: '#FAFAF8' }}>
+        <ActivityIndicator color="#1D9E75" />
+      </View>
+    );
+  }
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FAFAF8' }}>
-      <StatusBar barStyle="dark-content" />
-      <TodayScreen />
-    </SafeAreaView>
+    <SafeAreaProvider>
+     <StatusBar barStyle="dark-content" />
+      <Navigation />
+    </SafeAreaProvider>
   );
 }
