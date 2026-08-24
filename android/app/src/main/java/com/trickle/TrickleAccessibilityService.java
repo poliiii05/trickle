@@ -59,7 +59,7 @@ public class TrickleAccessibilityService extends AccessibilityService {
         Log.d(TAG, "Nakakonekta ang accessibility service");
     }
 
-    @Override
+       @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
         if (event.getPackageName() == null) return;
@@ -71,7 +71,7 @@ public class TrickleAccessibilityService extends AccessibilityService {
 
         engine.onForegroundApp(pkg);
 
-        // Agad na block check — hindi hinihintay ang susunod na tick
+        // Immediate block check — don't wait for the next tick
         LimitStore store = LimitStore.get(this);
         LimitEntry entry = store.get(pkg);
         if (entry != null && entry.isActive && entry.isLockedNow()) {
