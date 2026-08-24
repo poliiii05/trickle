@@ -65,4 +65,5 @@ export interface TrackingNativeModule {
   setMonitoringEnabled(enabled: boolean): Promise<void>;
   isMonitoringEnabled(): Promise<boolean>;
   getCurrentForegroundApp(): Promise<string | null>;
+  clearAllLocks(): Promise<void>;
 }

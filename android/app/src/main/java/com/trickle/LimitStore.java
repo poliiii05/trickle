@@ -18,15 +18,15 @@ public class LimitStore {
 
     private static LimitStore instance;
 
+    private final Context appContext;
     private final SharedPreferences prefs;
     private final Map<String, LimitEntry> cache = new LinkedHashMap<>();
 
     private LimitStore(Context ctx) {
-        prefs = ctx.getApplicationContext()
-                   .getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        appContext = ctx.getApplicationContext();
+        prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         loadFromDisk();
     }
-
     public static synchronized LimitStore get(Context ctx) {
         if (instance == null) instance = new LimitStore(ctx);
         return instance;
@@ -71,9 +71,9 @@ public class LimitStore {
         return e != null && e.isActive;
     }
 
-    /**
-     * Tinatawag ng JS. Pinapanatili ang runtime state (remaining, lock)
-     * maliban kung nagbago ang allowance o kung bago ang app.
+     /**
+     * Called from JS. Preserves runtime state (remaining, lock)
+     * unless the allowance changed or the app is new.
      */
     public synchronized void replaceAll(JSONArray incoming) {
         Map<String, LimitEntry> old = new LinkedHashMap<>(cache);
@@ -83,6 +83,7 @@ public class LimitStore {
             try {
                 JSONObject o = incoming.getJSONObject(i);
                 LimitEntry fresh = LimitEntry.fromJson(o);
+                if (Whitelist.isProtected(appContext, fresh.packageName)) continue;
                 LimitEntry prev = old.get(fresh.packageName);
 
                 if (prev != null && prev.allowanceSeconds == fresh.allowanceSeconds) {
@@ -118,3 +119,4 @@ public class LimitStore {
         prefs.edit().putBoolean(KEY_MONITORING, enabled).apply();
     }
 }
+    

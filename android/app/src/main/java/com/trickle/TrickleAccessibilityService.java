@@ -66,11 +66,17 @@ public class TrickleAccessibilityService extends AccessibilityService {
 
         String pkg = event.getPackageName().toString();
 
-        // Balewalain ang system UI at ang sarili nating app
         if (pkg.equals(getPackageName())) return;
         if (pkg.equals("com.android.systemui")) return;
 
         engine.onForegroundApp(pkg);
+
+        // Agad na block check — hindi hinihintay ang susunod na tick
+        LimitStore store = LimitStore.get(this);
+        LimitEntry entry = store.get(pkg);
+        if (entry != null && entry.isActive && entry.isLockedNow()) {
+            engine.enforceBlock(entry);
+        }
     }
 
     @Override

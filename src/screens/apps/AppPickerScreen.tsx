@@ -8,6 +8,14 @@ import type { InstalledApp } from '../../native/types';
 import { useLimitsStore } from '../../store/limitsStore';
 import AppIcon from '../../components/AppIcon';
 
+const PROTECTED_HINTS = [
+    'com.android.settings',
+    'com.android.dialer',
+    'com.google.android.dialer',
+    'com.android.contacts',
+    'com.google.android.apps.messaging',
+  ];
+
 export default function AppPickerScreen() {
   const nav = useNavigation<any>();
   const limits = useLimitsStore(s => s.limits);
@@ -29,17 +37,19 @@ export default function AppPickerScreen() {
     [limits]
   );
 
+   
   const filtered = useMemo(() => {
+    const base = apps.filter(a => !PROTECTED_HINTS.includes(a.packageName));
     const q = search.trim().toLowerCase();
-    if (!q) return apps;
-    return apps.filter(a => a.appLabel.toLowerCase().includes(q));
+    if (!q) return base;
+    return base.filter(a => a.appLabel.toLowerCase().includes(q));
   }, [apps, search]);
 
   return (
     <View style={{ flex: 1 }}>
       <View style={{ padding: 16 }}>
         <TextInput
-          placeholder="Maghanap ng app"
+          placeholder="Search apps"
           placeholderTextColor="#9C9A92"
           value={search}
           onChangeText={setSearch}
@@ -88,13 +98,13 @@ export default function AppPickerScreen() {
                   {item.appLabel}
                 </Text>
                 {already && (
-                  <Text style={{ fontSize: 13, color: '#9C9A92' }}>Naka-set na</Text>
+                  <Text style={{ fontSize: 13, color: '#9C9A92' }}>Already set</Text>
                 )}
               </Pressable>
             );
           }}
         />
-      )}9j
+      )}
     </View>
   );
 }

@@ -2,7 +2,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-
+import SettingsScreen from '../screens/settings/SettingsScreen';
 import TodayScreen from '../screens/home/TodayScreen';
 import AppListScreen from '../screens/apps/AppListScreen';
 import AppPickerScreen from '../screens/apps/AppPickerScreen';
@@ -22,6 +22,7 @@ function Tabs() {
       }}>
       <Tab.Screen name="Today" component={TodayScreen} options={{ title: 'Ngayon' }} />
       <Tab.Screen name="Apps" component={AppListScreen} options={{ title: 'Limits' }} />
+      <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
     </Tab.Navigator>
   );
 }

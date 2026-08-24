@@ -14,6 +14,7 @@ public class LimitEntry {
     public boolean isActive;
 
     // Transient — hindi sinisave sa disk, nirereset kada lock cycle
+    
     public transient boolean warned5min = false;
     public transient boolean warned1min = false;
     public int attemptCount = 0;
@@ -28,6 +29,7 @@ public class LimitEntry {
         e.lockedUntil      = o.optLong("lockedUntil", 0L);
         e.isActive         = o.optBoolean("isActive", true);
         e.attemptCount     = o.optInt("attemptCount", 0);
+        e.attemptCount = o.optInt("attemptCount", 0);
         return e;
     }
 
@@ -41,6 +43,7 @@ public class LimitEntry {
         o.put("lockedUntil", lockedUntil);
         o.put("isActive", isActive);
         o.put("attemptCount", attemptCount);
+        o.put("attemptCount", attemptCount);      
         return o;
     }
 

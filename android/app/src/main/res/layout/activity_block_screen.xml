@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="#FAFAF8"
+    android:padding="32dp">
+
+    <TextView
+        android:id="@+id/app_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="20sp"
+        android:textColor="#6B6B66"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:id="@+id/countdown"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="64sp"
+        android:textColor="#2C2C2A"
+        android:fontFamily="sans-serif-light"
+        android:text="0:00" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="16sp"
+        android:textColor="#6B6B66"
+        android:layout_marginTop="16dp"
+        android:gravity="center"
+        android:text="Naubos na ang oras mo dito. Bumalik ka mamaya." />
+
+    <Button
+        android:id="@+id/btn_ok"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="48dp"
+        android:paddingStart="48dp"
+        android:paddingEnd="48dp"
+        android:backgroundTint="#1D9E75"
+        android:textColor="#FFFFFF"
+        android:text="Ok" />
+
+</LinearLayout>

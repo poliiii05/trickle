@@ -133,4 +133,15 @@ public class TrackingModule extends ReactContextBaseJavaModule {
         promise.resolve(
                 TrackingEngine.get(getReactApplicationContext()).getCurrentPackage());
     }
+
+        @ReactMethod
+    public void clearAllLocks(Promise promise) {
+        LimitStore store = LimitStore.get(getReactApplicationContext());
+        for (LimitEntry e : store.all()) {
+            e.lockedUntil = 0L;
+            e.remainingSeconds = e.allowanceSeconds;
+        }
+        store.persist();
+        promise.resolve(null);
+    }
 }
