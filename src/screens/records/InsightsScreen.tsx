@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl, StyleSheet } from 'react-native';
 import { getBlockStats } from '../../db/blockRepo';
 import AppIcon from '../../components/AppIcon';
+import EmptyState from '../../components/EmptyState';
 import {
   useTheme,
   spacing,
@@ -68,10 +69,11 @@ export default function InsightsScreen() {
         </View>
       )}
 
-      {stats && stats.totalBlocks === 0 && (
-        <Text style={s.emptyText}>
-          Nothing has been blocked in the last 30 days.
-        </Text>
+       {stats && stats.totalBlocks === 0 && (
+        <EmptyState
+          title="Nothing blocked yet"
+          body="Once you hit a limit, you'll see how often it happened and how many times you tried to open the app anyway."
+        />
       )}
     </ScrollView>
   );

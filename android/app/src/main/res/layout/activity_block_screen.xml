@@ -4,7 +4,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:gravity="center"
-    android:background="#FAFAF8"
+    android:background="@color/block_bg"
     android:padding="32dp">
 
     <TextView
@@ -12,7 +12,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textSize="20sp"
-        android:textColor="#6B6B66"
+        android:textColor="@color/block_text_muted"
         android:layout_marginBottom="8dp" />
 
     <TextView
@@ -20,7 +20,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textSize="64sp"
-        android:textColor="#2C2C2A"
+        android:textColor="@color/block_text"
         android:fontFamily="sans-serif-light"
         android:text="0:00" />
 
@@ -28,10 +28,10 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textSize="16sp"
-        android:textColor="#6B6B66"
+        android:textColor="@color/block_text_muted"
         android:layout_marginTop="16dp"
         android:gravity="center"
-        android:text="Naubos na ang oras mo dito. Bumalik ka mamaya." />
+        android:text="Time is up here. Come back later." />
 
     <Button
         android:id="@+id/btn_ok"
@@ -40,8 +40,8 @@
         android:layout_marginTop="48dp"
         android:paddingStart="48dp"
         android:paddingEnd="48dp"
-        android:backgroundTint="#1D9E75"
-        android:textColor="#FFFFFF"
+        android:backgroundTint="@color/block_primary"
+        android:textColor="@color/block_on_primary"
         android:text="Ok" />
 
 </LinearLayout>

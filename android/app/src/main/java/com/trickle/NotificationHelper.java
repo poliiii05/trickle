@@ -36,7 +36,8 @@ public class NotificationHelper {
         Notification n = new NotificationCompat.Builder(ctx, CHANNEL_WARNING)
                 .setContentTitle("Running low")
                 .setContentText(text)
-                .setSmallIcon(android.R.drawable.ic_menu_recent_history)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setColor(ctx.getColor(R.color.trickle_notification))
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setAutoCancel(true)
                 .build();

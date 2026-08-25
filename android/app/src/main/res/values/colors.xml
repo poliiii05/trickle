@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="block_bg">#FAFAF8</color>
+    <color name="block_text">#2C2C2A</color>
+    <color name="block_text_muted">#6B6B66</color>
+    <color name="block_primary">#1D9E75</color>
+    <color name="block_on_primary">#FFFFFF</color>
+    <color name="trickle_notification">#1D9E75</color>
+    <color name="ic_launcher_background">#1D9E75</color>
+</resources>

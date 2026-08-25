@@ -14,10 +14,13 @@ import { getFlag, setFlag } from './src/db/settingsRepo';
 import { runSync } from './src/services/syncService';
 import Navigation from './src/navigation';
 import { ThemeProvider, useTheme } from './src/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import OnboardingScreen from './src/screens/onboarding/OnboardingScreen';
 
 function AppShell() {
   const { colors, isDark } = useTheme();
   const [ready, setReady] = useState(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -30,6 +33,9 @@ function AppShell() {
 
       await initDatabase();
 
+      const onboarded = await getFlag('onboarded');
+      setNeedsOnboarding(!onboarded);
+
       const seen = await getFlag('firstRunDone');
       await runSync(!seen);
       if (!seen) await setFlag('firstRunDone', true);
@@ -39,6 +45,11 @@ function AppShell() {
 
     boot().catch(e => setError(String(e)));
   }, []);
+
+  const finishOnboarding = async () => {
+    await setFlag('onboarded', true);
+    setNeedsOnboarding(false);
+  };
 
   if (error) {
     return (
@@ -59,7 +70,13 @@ function AppShell() {
   return (
     <>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-      <Navigation />
+      {needsOnboarding ? (
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+          <OnboardingScreen onDone={finishOnboarding} />
+        </SafeAreaView>
+      ) : (
+        <Navigation />
+      )}
     </>
   );
 }

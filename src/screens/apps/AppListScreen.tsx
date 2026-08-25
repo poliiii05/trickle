@@ -7,6 +7,7 @@ import { useLiveLimits } from '../../hooks/useLiveLimits';
 import AppIcon from '../../components/AppIcon';
 import { useTheme, spacing, radius, type as typeScale } from '../../theme';
 import type { Palette } from '../../theme';
+import EmptyState from '../../components/EmptyState';
 
 export default function AppListScreen() {
   const nav = useNavigation<any>();
@@ -84,12 +85,13 @@ export default function AppListScreen() {
             </Pressable>
           );
         }}
-        ListEmptyComponent={
-          <View style={s.empty}>
-            <Text style={s.emptyText}>
-              No limits set yet. Tap + to add one.
-            </Text>
-          </View>
+          ListEmptyComponent={
+          <EmptyState
+            title="No limits yet"
+            body="Pick an app and decide how much time you want to give it each day."
+            actionLabel="Add your first limit"
+            onAction={() => nav.navigate('AppPicker')}
+          />
         }
       />
 
