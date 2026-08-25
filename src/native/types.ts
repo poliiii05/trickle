@@ -66,4 +66,5 @@ export interface TrackingNativeModule {
   isMonitoringEnabled(): Promise<boolean>;
   getCurrentForegroundApp(): Promise<string | null>;
   clearAllLocks(): Promise<void>;
+  drainBlockEvents(): Promise<string>;
 }

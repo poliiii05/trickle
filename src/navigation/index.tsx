@@ -7,6 +7,9 @@ import TodayScreen from '../screens/home/TodayScreen';
 import AppListScreen from '../screens/apps/AppListScreen';
 import AppPickerScreen from '../screens/apps/AppPickerScreen';
 import LimitEditorScreen from '../screens/apps/LimitEditorScreen';
+import HistoryScreen from '../screens/records/HistoryScreen';
+import InsightsScreen from '../screens/records/InsightsScreen';
+
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -23,6 +26,8 @@ function Tabs() {
       <Tab.Screen name="Today" component={TodayScreen} options={{ title: 'Ngayon' }} />
       <Tab.Screen name="Apps" component={AppListScreen} options={{ title: 'Limits' }} />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
+      <Tab.Screen name="History" component={HistoryScreen} options={{ title: 'History' }} />
+      <Tab.Screen name="Insights" component={InsightsScreen} options={{ title: 'Insights' }} />
     </Tab.Navigator>
   );
 }

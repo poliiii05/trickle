@@ -9,17 +9,22 @@ public class TrackingEngine {
 
     private static final String TAG = "TrickleEngine";
     private static TrackingEngine instance;
-
     private final Context appContext;
     private final LimitStore store;
-
     private String currentPackage = null;
     private long lastTickElapsed = 0L;
-
+    private String suppressPackage = null;
+    private long suppressUntil = 0L;
     private TrackingEngine(Context ctx) {
         appContext = ctx.getApplicationContext();
         store = LimitStore.get(appContext);
         lastTickElapsed = SystemClock.elapsedRealtime();
+    }
+
+    /** Briefly ignore blocks for a package right after the user dismissed the block screen. */
+    public synchronized void suppressBlockFor(String packageName, long millis) {
+        suppressPackage = packageName;
+        suppressUntil = System.currentTimeMillis() + millis;
     }
 
     public static synchronized TrackingEngine get(Context ctx) {
@@ -67,9 +72,11 @@ public class TrackingEngine {
         if (e.remainingSeconds <= 0) {
             e.remainingSeconds = 0;
             e.lockedUntil = System.currentTimeMillis() + (e.lockSeconds * 1000L);
+            enforceBlock(e);
             e.attemptCount = 0;
-             Log.d(TAG, "Limit exhausted: " + e.packageName);
+            Log.d(TAG, "Naubos ang limit: " + e.packageName);
             store.persist();
+            BlockLog.record(appContext, e);      // ← idagdag
             enforceBlock(e);
             return;
         }
@@ -89,10 +96,15 @@ public class TrackingEngine {
     }
 
        /** Shows the block screen if it isn't already up. */
-    public void enforceBlock(LimitEntry e) {
+          public void enforceBlock(LimitEntry e) {
         if (!store.isMonitoringEnabled()) return;
         if (BlockScreenActivity.isVisible()) return;
         if (Whitelist.isProtected(appContext, e.packageName)) return;
+
+        if (e.packageName.equals(suppressPackage)
+                && System.currentTimeMillis() < suppressUntil) {
+            return;
+        }
 
         e.attemptCount++;
         store.persist();

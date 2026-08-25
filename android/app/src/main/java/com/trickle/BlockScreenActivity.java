@@ -7,7 +7,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.WindowManager;
-import android.widget.Button;
 import android.widget.TextView;
 
 public class BlockScreenActivity extends Activity {
@@ -21,6 +20,7 @@ public class BlockScreenActivity extends Activity {
     private TextView countdownView;
     private Handler handler;
     private long unlockAt;
+    private String blockedPackage;
 
     private final Runnable ticker = new Runnable() {
         @Override
@@ -74,6 +74,7 @@ public class BlockScreenActivity extends Activity {
     }
 
     private void bind(Intent intent) {
+        blockedPackage = intent.getStringExtra(EXTRA_PACKAGE);
         String label = intent.getStringExtra(EXTRA_LABEL);
         unlockAt = intent.getLongExtra(EXTRA_UNLOCK_AT, 0L);
 
@@ -109,6 +110,9 @@ public class BlockScreenActivity extends Activity {
     }
 
     private void goHome() {
+        if (blockedPackage != null) {
+            TrackingEngine.get(this).suppressBlockFor(blockedPackage, 2000);
+        }
         Intent home = new Intent(Intent.ACTION_MAIN);
         home.addCategory(Intent.CATEGORY_HOME);
         home.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
