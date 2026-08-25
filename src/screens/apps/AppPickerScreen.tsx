@@ -1,24 +1,40 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, FlatList, Pressable, TextInput, ActivityIndicator,
+  View,
+  Text,
+  FlatList,
+  Pressable,
+  TextInput,
+  ActivityIndicator,
+  StyleSheet,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Apps from '../../native/Apps';
 import type { InstalledApp } from '../../native/types';
 import { useLimitsStore } from '../../store/limitsStore';
 import AppIcon from '../../components/AppIcon';
+import {
+  useTheme,
+  spacing,
+  radius,
+  type as typeScale,
+  type Palette,
+} from '../../theme';
 
 const PROTECTED_HINTS = [
-    'com.android.settings',
-    'com.android.dialer',
-    'com.google.android.dialer',
-    'com.android.contacts',
-    'com.google.android.apps.messaging',
-  ];
+  'com.android.settings',
+  'com.android.dialer',
+  'com.google.android.dialer',
+  'com.android.contacts',
+  'com.google.android.apps.messaging',
+];
 
 export default function AppPickerScreen() {
   const nav = useNavigation<any>();
-  const limits = useLimitsStore(s => s.limits);
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
+
+  const limits = useLimitsStore(st => st.limits);
   const [apps, setApps] = useState<InstalledApp[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -34,10 +50,9 @@ export default function AppPickerScreen() {
 
   const existing = useMemo(
     () => new Set(limits.map(l => l.packageName)),
-    [limits]
+    [limits],
   );
 
-   
   const filtered = useMemo(() => {
     const base = apps.filter(a => !PROTECTED_HINTS.includes(a.packageName));
     const q = search.trim().toLowerCase();
@@ -46,26 +61,19 @@ export default function AppPickerScreen() {
   }, [apps, search]);
 
   return (
-    <View style={{ flex: 1 }}>
-      <View style={{ padding: 16 }}>
+    <View style={s.root}>
+      <View style={s.searchWrap}>
         <TextInput
           placeholder="Search apps"
-          placeholderTextColor="#9C9A92"
+          placeholderTextColor={colors.textFaint}
           value={search}
           onChangeText={setSearch}
-          style={{
-            backgroundColor: '#FFF',
-            borderRadius: 12,
-            paddingHorizontal: 16,
-            paddingVertical: 12,
-            fontSize: 16,
-            color: '#2C2C2A',
-          }}
+          style={s.search}
         />
       </View>
 
       {loading ? (
-        <ActivityIndicator color="#1D9E75" style={{ marginTop: 32 }} />
+        <ActivityIndicator color={colors.primary} style={s.loader} />
       ) : (
         <FlatList
           data={filtered}
@@ -83,23 +91,12 @@ export default function AppPickerScreen() {
                     appLabel: item.appLabel,
                   })
                 }
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  paddingHorizontal: 24,
-                  paddingVertical: 12,
-                  gap: 14,
-                  opacity: already ? 0.4 : 1,
-                }}>
+                style={[s.row, already && s.rowDisabled]}>
                 <AppIcon packageName={item.packageName} />
-                <Text
-                  numberOfLines={1}
-                  style={{ flex: 1, fontSize: 16, color: '#2C2C2A' }}>
+                <Text numberOfLines={1} style={s.rowLabel}>
                   {item.appLabel}
                 </Text>
-                {already && (
-                  <Text style={{ fontSize: 13, color: '#9C9A92' }}>Already set</Text>
-                )}
+                {already && <Text style={s.rowNote}>Already set</Text>}
               </Pressable>
             );
           }}
@@ -107,4 +104,33 @@ export default function AppPickerScreen() {
       )}
     </View>
   );
+}
+
+function makeStyles(c: Palette) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: c.bg },
+
+    searchWrap: { padding: spacing.lg },
+    search: {
+      backgroundColor: c.surface,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      ...typeScale.body,
+      color: c.text,
+    },
+
+    loader: { marginTop: spacing.xxl },
+
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.md,
+      gap: spacing.md + 2,
+    },
+    rowDisabled: { opacity: 0.4 },
+    rowLabel: { flex: 1, ...typeScale.body, color: c.text },
+    rowNote: { ...typeScale.caption, color: c.textFaint },
+  });
 }

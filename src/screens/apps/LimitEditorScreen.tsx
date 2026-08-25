@@ -1,21 +1,40 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, Alert, ScrollView } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  Alert,
+  ScrollView,
+  StyleSheet,
+} from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useLimitsStore } from '../../store/limitsStore';
 import { isLocked } from '../../db/limitsRepo';
 import { splitDuration, joinDuration, formatCountdown } from '../../utils/time';
 import AppIcon from '../../components/AppIcon';
+import {
+  useTheme,
+  spacing,
+  radius,
+  iconSize,
+  type as typeScale,
+  type Palette,
+} from '../../theme';
 
 const PRESETS = [
-  { label: '20m bawat araw', allowance: 20, lockH: 23, lockM: 40 },
-  { label: '1h bawat araw', allowance: 60, lockH: 23, lockM: 0 },
-  { label: '20m tapos 10m break', allowance: 20, lockH: 0, lockM: 10 },
-  { label: '45m tapos 2h break', allowance: 45, lockH: 2, lockM: 0 },
+  { label: '20m per day', allowance: 20, lockH: 23, lockM: 40 },
+  { label: '1h per day', allowance: 60, lockH: 23, lockM: 0 },
+  { label: '20m then 10m break', allowance: 20, lockH: 0, lockM: 10 },
+  { label: '45m then 2h break', allowance: 45, lockH: 2, lockM: 0 },
 ];
 
 export default function LimitEditorScreen() {
   const nav = useNavigation<any>();
   const { packageName, appLabel } = useRoute<any>().params;
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
+
   const { byPackage, save, remove, load } = useLimitsStore();
 
   const existing = byPackage(packageName);
@@ -33,7 +52,7 @@ export default function LimitEditorScreen() {
     setLockMins(String(minutes));
   }, [existing]);
 
-  const applyPreset = (p: typeof PRESETS[number]) => {
+  const applyPreset = (p: (typeof PRESETS)[number]) => {
     setAllowanceMin(String(p.allowance));
     setLockHours(String(p.lockH));
     setLockMins(String(p.lockM));
@@ -45,11 +64,11 @@ export default function LimitEditorScreen() {
     const m = parseInt(lockMins, 10) || 0;
 
     if (!allowance || allowance < 1) {
-      Alert.alert('Mali ang allowance', 'Dapat hindi bababa sa 1 minuto.');
+      Alert.alert('Invalid allowance', 'Must be at least 1 minute.');
       return;
     }
     if (h === 0 && m === 0) {
-      Alert.alert('Mali ang lock', 'Dapat hindi bababa sa 1 minuto ang lock.');
+      Alert.alert('Invalid lock', 'Lock must be at least 1 minute.');
       return;
     }
 
@@ -63,10 +82,10 @@ export default function LimitEditorScreen() {
   };
 
   const onDelete = () => {
-    Alert.alert('Tanggalin ang limit?', `Aalisin ang limit para sa ${appLabel}.`, [
-      { text: 'Kanselahin', style: 'cancel' },
+    Alert.alert('Remove limit?', `This will remove the limit for ${appLabel}.`, [
+      { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Tanggalin',
+        text: 'Remove',
         style: 'destructive',
         onPress: async () => {
           await remove(packageName);
@@ -78,77 +97,66 @@ export default function LimitEditorScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 24, gap: 24 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-        <AppIcon packageName={packageName} size={52} />
-        <Text style={{ fontSize: 22, fontWeight: '600', color: '#2C2C2A', flex: 1 }}>
-          {appLabel}
-        </Text>
+    <ScrollView style={s.root} contentContainerStyle={s.content}>
+      <View style={s.head}>
+        <AppIcon packageName={packageName} size={iconSize.lg} />
+        <Text style={s.appName}>{appLabel}</Text>
       </View>
 
       {locked && (
-        <View style={{ backgroundColor: '#FAECE7', padding: 16, borderRadius: 12 }}>
-          <Text style={{ color: '#993C1D', lineHeight: 22 }}>
-            Naka-lock ngayon ang app na ito. Mababago mo lang ang settings
-            pagkatapos ng {formatCountdown(existing!.lockedUntil! - Date.now())}.
+        <View style={s.lockedBanner}>
+          <Text style={s.lockedText}>
+            {`This app is currently locked. You can change its settings in ${formatCountdown(
+              existing!.lockedUntil! - Date.now(),
+            )}.`}
           </Text>
         </View>
       )}
 
-      <View style={{ gap: 8 }}>
-        <Text style={{ fontSize: 14, color: '#6B6B66' }}>Screen time (minuto)</Text>
+      <View style={s.field}>
+        <Text style={s.fieldLabel}>Screen time (minutes)</Text>
         <TextInput
           value={allowanceMin}
           onChangeText={setAllowanceMin}
           keyboardType="number-pad"
           editable={!locked}
-          style={inputStyle(locked)}
+          style={[s.input, locked && s.inputDisabled]}
         />
       </View>
 
-      <View style={{ gap: 8 }}>
-        <Text style={{ fontSize: 14, color: '#6B6B66' }}>
-          Lock pagkatapos maubos
-        </Text>
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <View style={{ flex: 1, gap: 6 }}>
-            <Text style={{ fontSize: 12, color: '#9C9A92' }}>Oras</Text>
+      <View style={s.field}>
+        <Text style={s.fieldLabel}>Lock duration after limit</Text>
+        <View style={s.durationRow}>
+          <View style={s.durationCol}>
+            <Text style={s.microLabel}>Hours</Text>
             <TextInput
               value={lockHours}
               onChangeText={setLockHours}
               keyboardType="number-pad"
               editable={!locked}
-              style={inputStyle(locked)}
+              style={[s.input, locked && s.inputDisabled]}
             />
           </View>
-          <View style={{ flex: 1, gap: 6 }}>
-            <Text style={{ fontSize: 12, color: '#9C9A92' }}>Minuto</Text>
+          <View style={s.durationCol}>
+            <Text style={s.microLabel}>Minutes</Text>
             <TextInput
               value={lockMins}
               onChangeText={setLockMins}
               keyboardType="number-pad"
               editable={!locked}
-              style={inputStyle(locked)}
+              style={[s.input, locked && s.inputDisabled]}
             />
           </View>
         </View>
       </View>
 
       {!locked && (
-        <View style={{ gap: 8 }}>
-          <Text style={{ fontSize: 14, color: '#6B6B66' }}>Mabilisang preset</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        <View style={s.field}>
+          <Text style={s.fieldLabel}>Quick presets</Text>
+          <View style={s.presetWrap}>
             {PRESETS.map(p => (
-              <Pressable
-                key={p.label}
-                onPress={() => applyPreset(p)}
-                style={{
-                  paddingHorizontal: 14,
-                  paddingVertical: 10,
-                  borderRadius: 999,
-                  backgroundColor: '#EFEEE9',
-                }}>
-                <Text style={{ fontSize: 13, color: '#2C2C2A' }}>{p.label}</Text>
+              <Pressable key={p.label} onPress={() => applyPreset(p)} style={s.preset}>
+                <Text style={s.presetText}>{p.label}</Text>
               </Pressable>
             ))}
           </View>
@@ -158,34 +166,69 @@ export default function LimitEditorScreen() {
       <Pressable
         onPress={onSave}
         disabled={locked}
-        style={{
-          backgroundColor: locked ? '#C9C7BF' : '#1D9E75',
-          padding: 16,
-          borderRadius: 12,
-        }}>
-        <Text style={{ color: '#FFF', textAlign: 'center', fontWeight: '500' }}>
-          I-save
-        </Text>
+        style={[s.saveButton, locked && s.saveButtonDisabled]}>
+        <Text style={s.saveText}>Save</Text>
       </Pressable>
 
       {existing && !locked && (
-        <Pressable onPress={onDelete} style={{ padding: 12 }}>
-          <Text style={{ color: '#A32D2D', textAlign: 'center' }}>
-            Tanggalin ang limit
-          </Text>
+        <Pressable onPress={onDelete} style={s.removeButton}>
+          <Text style={s.removeText}>Remove limit</Text>
         </Pressable>
       )}
     </ScrollView>
   );
 }
 
-function inputStyle(disabled: boolean) {
-  return {
-    backgroundColor: disabled ? '#F3F2EE' : '#FFF',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 18,
-    color: disabled ? '#9C9A92' : '#2C2C2A',
-  };
+function makeStyles(c: Palette) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: c.bg },
+    content: { padding: spacing.xl, gap: spacing.xl },
+
+    head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md + 2 },
+    appName: { ...typeScale.heading, color: c.text, flex: 1 },
+
+    lockedBanner: {
+      backgroundColor: c.blockedSoft,
+      padding: spacing.lg,
+      borderRadius: radius.md,
+    },
+    lockedText: { ...typeScale.body, color: c.blockedDeep, lineHeight: 22 },
+
+    field: { gap: spacing.sm },
+    fieldLabel: { ...typeScale.label, color: c.textMuted },
+    microLabel: { ...typeScale.micro, color: c.textFaint },
+
+    input: {
+      backgroundColor: c.surface,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md + 2,
+      fontSize: 18,
+      color: c.text,
+    },
+    inputDisabled: { backgroundColor: c.surfaceAlt, color: c.textFaint },
+
+    durationRow: { flexDirection: 'row', gap: spacing.md },
+    durationCol: { flex: 1, gap: spacing.xs + 2 },
+
+    presetWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+    preset: {
+      paddingHorizontal: spacing.md + 2,
+      paddingVertical: spacing.sm + 2,
+      borderRadius: radius.pill,
+      backgroundColor: c.surfaceAlt,
+    },
+    presetText: { ...typeScale.caption, color: c.text },
+
+    saveButton: {
+      backgroundColor: c.primary,
+      padding: spacing.lg,
+      borderRadius: radius.md,
+    },
+    saveButtonDisabled: { backgroundColor: c.disabled },
+    saveText: { ...typeScale.bodyStrong, color: c.primaryOn, textAlign: 'center' },
+
+    removeButton: { padding: spacing.md },
+    removeText: { ...typeScale.body, color: c.danger, textAlign: 'center' },
+  });
 }

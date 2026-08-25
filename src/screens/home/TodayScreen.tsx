@@ -1,14 +1,18 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, FlatList, AppState, ActivityIndicator, RefreshControl,
+  View, Text, FlatList, AppState, ActivityIndicator, RefreshControl, StyleSheet,
 } from 'react-native';
 import Permissions from '../../native/Permissions';
 import Apps from '../../native/Apps';
 import type { UsageStat } from '../../native/types';
 import { startOfToday, formatDuration } from '../../utils/time';
 import PermissionGate from './PermissionGate';
+import { useTheme, spacing, type as typeScale, type Palette } from '../../theme';
 
 export default function TodayScreen() {
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
+
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [stats, setStats] = useState<UsageStat[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,7 +36,7 @@ export default function TodayScreen() {
   useEffect(() => {
     load();
     const sub = AppState.addEventListener('change', next => {
-            if (appState.current?.match(/inactive|background/) && next === 'active') {
+      if (appState.current?.match(/inactive|background/) && next === 'active') {
         load();
       }
       appState.current = next;
@@ -42,60 +46,67 @@ export default function TodayScreen() {
 
   if (hasPermission === null) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center' }}>
-        <ActivityIndicator color="#1D9E75" />
+      <View style={s.center}>
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
 
   if (!hasPermission) return <PermissionGate onRecheck={load} />;
 
-  const total = stats.reduce((sum, s) => sum + s.totalSeconds, 0);
+  const total = stats.reduce((sum, st) => sum + st.totalSeconds, 0);
 
   return (
     <FlatList
+      style={s.root}
       data={stats}
       keyExtractor={item => item.packageName}
       refreshControl={
-        <RefreshControl refreshing={loading} onRefresh={load} tintColor="#1D9E75" />
+        <RefreshControl
+          refreshing={loading}
+          onRefresh={load}
+          tintColor={colors.primary}
+        />
       }
       ListHeaderComponent={
-        <View style={{ padding: 24, paddingBottom: 8 }}>
-          <Text style={{ fontSize: 14, color: '#9C9A92' }}>Screen time ngayong araw</Text>
-          <Text style={{ fontSize: 40, fontWeight: '600', color: '#2C2C2A' }}>
-            {formatDuration(total)}
-          </Text>
-          <Text style={{ fontSize: 14, color: '#6B6B66', marginTop: 4 }}>
-            {stats.length} apps ang nagamit
-          </Text>
+        <View style={s.header}>
+          <Text style={s.eyebrow}>Screen time today</Text>
+          <Text style={s.total}>{formatDuration(total)}</Text>
+          <Text style={s.subtitle}>{`${stats.length} apps used`}</Text>
         </View>
       }
       renderItem={({ item }) => (
-        <View
-          style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            paddingHorizontal: 24,
-            paddingVertical: 14,
-            borderBottomWidth: 1,
-            borderBottomColor: '#EFEEE9',
-          }}>
-          <Text
-            numberOfLines={1}
-            style={{ flex: 1, fontSize: 16, color: '#2C2C2A', marginRight: 12 }}>
+        <View style={s.row}>
+          <Text numberOfLines={1} style={s.appLabel}>
             {item.appLabel}
           </Text>
-          <Text style={{ fontSize: 15, color: '#6B6B66', fontVariant: ['tabular-nums'] }}>
-            {formatDuration(item.totalSeconds)}
-          </Text>
+          <Text style={s.duration}>{formatDuration(item.totalSeconds)}</Text>
         </View>
       )}
-      ListEmptyComponent={
-        <Text style={{ padding: 24, color: '#9C9A92' }}>
-          Walang usage data pa ngayong araw.
-        </Text>
-      }
+      ListEmptyComponent={<Text style={s.empty}>No usage data yet today.</Text>}
     />
   );
+}
+
+function makeStyles(c: Palette) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: c.bg },
+    center: { flex: 1, justifyContent: 'center', backgroundColor: c.bg },
+    header: { padding: spacing.xl, paddingBottom: spacing.sm },
+    eyebrow: { ...typeScale.label, color: c.textFaint },
+    total: { ...typeScale.display, color: c.text },
+    subtitle: { ...typeScale.label, color: c.textMuted, marginTop: spacing.xs },
+    row: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.md + 2,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+    },
+    appLabel: { flex: 1, ...typeScale.body, color: c.text, marginRight: spacing.md },
+    duration: { ...typeScale.body, color: c.textMuted, fontVariant: ['tabular-nums'] },
+    empty: { padding: spacing.xl, ...typeScale.body, color: c.textFaint },
+  });
 }

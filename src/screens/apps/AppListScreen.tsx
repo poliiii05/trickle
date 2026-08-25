@@ -1,19 +1,26 @@
-import React, { useEffect } from 'react';
-import { View, Text, FlatList, Pressable, Switch } from 'react-native';
+import React, { useEffect, useMemo } from 'react';
+import { View, Text, FlatList, Pressable, Switch, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useLimitsStore } from '../../store/limitsStore';
 import { formatDuration, formatCountdown } from '../../utils/time';
-import AppIcon from '../../components/AppIcon';
 import { useLiveLimits } from '../../hooks/useLiveLimits';
+import AppIcon from '../../components/AppIcon';
+import { useTheme, spacing, radius, type as typeScale } from '../../theme';
+import type { Palette } from '../../theme';
 
 export default function AppListScreen() {
   const nav = useNavigation<any>();
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
+
   const { limits, load, toggle } = useLimitsStore();
   const live = useLiveLimits();
-  const liveByPkg = React.useMemo(
+
+  const liveByPkg = useMemo(
     () => new Map(live.map(l => [l.packageName, l])),
-    [live]
+    [live],
   );
+
   useEffect(() => {
     load();
     const unsub = nav.addListener('focus', load);
@@ -21,21 +28,19 @@ export default function AppListScreen() {
   }, [nav, load]);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={s.root}>
       <FlatList
         data={limits}
         keyExtractor={i => i.packageName}
         ListHeaderComponent={
-          <View style={{ padding: 24, paddingBottom: 8 }}>
-            <Text style={{ fontSize: 28, fontWeight: '600', color: '#2C2C2A' }}>
-              Mga limit
-            </Text>
-            <Text style={{ fontSize: 14, color: '#6B6B66', marginTop: 4 }}>
-              {limits.length} apps ang naka-set
+          <View style={s.header}>
+            <Text style={s.title}>Limits</Text>
+            <Text style={s.subtitle}>
+              {`${limits.length} apps configured`}
             </Text>
           </View>
         }
-                renderItem={({ item }) => {
+        renderItem={({ item }) => {
           const state = liveByPkg.get(item.packageName);
           const remaining = state?.remainingSeconds ?? item.allowanceSeconds;
           const lockedUntil = state?.lockedUntil ?? 0;
@@ -49,27 +54,21 @@ export default function AppListScreen() {
                   appLabel: item.appLabel,
                 })
               }
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                paddingHorizontal: 24,
-                paddingVertical: 14,
-                gap: 14,
-              }}>
+              style={s.row}>
               <AppIcon packageName={item.packageName} />
 
-              <View style={{ flex: 1 }}>
-                <Text numberOfLines={1} style={{ fontSize: 16, color: '#2C2C2A' }}>
+              <View style={s.rowBody}>
+                <Text numberOfLines={1} style={s.appLabel}>
                   {item.appLabel}
                 </Text>
 
                 {locked ? (
-                  <Text style={{ fontSize: 13, color: '#D85A30', marginTop: 2 }}>
-                    {`Naka-lock · ${formatCountdown(lockedUntil - Date.now())}`}
+                  <Text style={s.lockedText}>
+                    {`Locked · ${formatCountdown(lockedUntil - Date.now())}`}
                   </Text>
                 ) : (
-                  <Text style={{ fontSize: 13, color: '#6B6B66', marginTop: 2 }}>
-                    {`${formatDuration(remaining)} natitira sa ${formatDuration(
+                  <Text style={s.metaText}>
+                    {`${formatDuration(remaining)} left of ${formatDuration(
                       item.allowanceSeconds,
                     )}`}
                   </Text>
@@ -80,35 +79,57 @@ export default function AppListScreen() {
                 value={item.isActive}
                 onValueChange={v => toggle(item.packageName, v)}
                 disabled={locked}
-                trackColor={{ true: '#1D9E75' }}
+                trackColor={{ true: colors.primary, false: colors.disabled }}
               />
             </Pressable>
           );
         }}
         ListEmptyComponent={
-          <View style={{ padding: 24 }}>
-            <Text style={{ color: '#9C9A92', lineHeight: 22 }}>
-              Wala pang naka-set na limit. Pindutin ang + para magdagdag.
+          <View style={s.empty}>
+            <Text style={s.emptyText}>
+              No limits set yet. Tap + to add one.
             </Text>
           </View>
         }
       />
 
-      <Pressable
-        onPress={() => nav.navigate('AppPicker')}
-        style={{
-          position: 'absolute',
-          right: 24,
-          bottom: 24,
-          width: 56,
-          height: 56,
-          borderRadius: 28,
-          backgroundColor: '#1D9E75',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-        <Text style={{ color: '#FFF', fontSize: 28, lineHeight: 32 }}>+</Text>
+      <Pressable onPress={() => nav.navigate('AppPicker')} style={s.fab}>
+        <Text style={s.fabIcon}>+</Text>
       </Pressable>
     </View>
   );
+}
+
+function makeStyles(c: Palette) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: c.bg },
+    header: { padding: spacing.xl, paddingBottom: spacing.sm },
+    title: { ...typeScale.title, color: c.text },
+    subtitle: { ...typeScale.label, color: c.textMuted, marginTop: spacing.xs },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.md + 2,
+      gap: spacing.md + 2,
+    },
+    rowBody: { flex: 1 },
+    appLabel: { ...typeScale.body, color: c.text },
+    metaText: { ...typeScale.caption, color: c.textMuted, marginTop: 2 },
+    lockedText: { ...typeScale.caption, color: c.blocked, marginTop: 2 },
+    empty: { padding: spacing.xl },
+    emptyText: { ...typeScale.body, color: c.textFaint, lineHeight: 22 },
+    fab: {
+      position: 'absolute',
+      right: spacing.xl,
+      bottom: spacing.xl,
+      width: 56,
+      height: 56,
+      borderRadius: radius.circle,
+      backgroundColor: c.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    fabIcon: { color: c.primaryOn, fontSize: 28, lineHeight: 32 },
+  });
 }

@@ -1,90 +1,83 @@
 import React, { useEffect, useState } from 'react';
 import {
+  View,
+  Text,
   ActivityIndicator,
-  PermissionsAndroid,
-  Platform,
   StatusBar,
   StyleSheet,
-  Text,
-  View,
+  PermissionsAndroid,
+  Platform,
 } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { createMMKV } from 'react-native-mmkv';
-
 import { initDatabase } from './src/db/schema';
-import Navigation from './src/navigation';
+import { getFlag, setFlag } from './src/db/settingsRepo';
 import { runSync } from './src/services/syncService';
+import Navigation from './src/navigation';
+import { ThemeProvider, useTheme } from './src/theme';
 
-const storage = createMMKV();
-
-export default function App() {
+function AppShell() {
+  const { colors, isDark } = useTheme();
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const initializeApp = async () => {
-      try {
-        if (Platform.OS === 'android' && Platform.Version >= 33) {
-          await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-          );
-        }
-
-        await initDatabase();
-
-        const seen = storage.getBoolean('firstRunDone');
-
-        await runSync(!seen);
-
-        if (!seen) {
-          storage.set('firstRunDone', true);
-        }
-
-        setReady(true);
-      } catch (e) {
-        setError(String(e));
+    const boot = async () => {
+      if (Platform.OS === 'android' && Platform.Version >= 33) {
+        await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+        );
       }
+
+      await initDatabase();
+
+      const seen = await getFlag('firstRunDone');
+      await runSync(!seen);
+      if (!seen) await setFlag('firstRunDone', true);
+
+      setReady(true);
     };
 
-    initializeApp();
+    boot().catch(e => setError(String(e)));
   }, []);
 
   if (error) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Database error: {error}</Text>
+      <View style={[styles.center, { backgroundColor: colors.bg }]}>
+        <Text style={{ color: colors.danger }}>Startup error: {error}</Text>
       </View>
     );
   }
 
   if (!ready) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator color="#1D9E75" />
+      <View style={[styles.center, { backgroundColor: colors.bg }]}>
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
 
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle="dark-content" />
+    <>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       <Navigation />
-    </SafeAreaProvider>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <SafeAreaProvider>
+        <AppShell />
+      </SafeAreaProvider>
+    </ThemeProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  errorContainer: {
+  center: {
     flex: 1,
+    justifyContent: 'center',
     padding: 24,
-    justifyContent: 'center',
-  },
-  errorText: {
-    color: '#A32D2D',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    backgroundColor: '#FAFAF8',
   },
 });

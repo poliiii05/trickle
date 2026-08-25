@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { Image, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Image, View,} from 'react-native';
 import Apps from '../native/Apps';
+import { useTheme } from '../theme';
 
 const cache = new Map<string, string | null>();
 
@@ -11,6 +12,7 @@ export default function AppIcon({
   packageName: string;
   size?: number;
 }) {
+  const { colors } = useTheme();
   const [uri, setUri] = useState<string | null>(cache.get(packageName) ?? null);
 
   useEffect(() => {
@@ -27,23 +29,14 @@ export default function AppIcon({
     };
   }, [packageName]);
 
+  const shape = useMemo(
+    () => ({ width: size, height: size, borderRadius: size * 0.22 }),
+    [size],
+  );
+
   if (!uri) {
-    return (
-      <View
-        style={{
-          width: size,
-          height: size,
-          borderRadius: size * 0.22,
-          backgroundColor: '#EFEEE9',
-        }}
-      />
-    );
+    return <View style={[shape, { backgroundColor: colors.surfaceAlt }]} />;
   }
 
-  return (
-    <Image
-      source={{ uri }}
-      style={{ width: size, height: size, borderRadius: size * 0.22 }}
-    />
-  );
+  return <Image source={{ uri }} style={shape} />;
 }

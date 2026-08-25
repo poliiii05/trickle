@@ -1,36 +1,50 @@
-import React from 'react';
-import { View, Text, Pressable } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Permissions from '../../native/Permissions';
+import { useTheme, spacing, radius, type as typeScale, type Palette } from '../../theme';
 
 export default function PermissionGate({ onRecheck }: { onRecheck: () => void }) {
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
+
   return (
-    <View style={{ padding: 24, gap: 16 }}>
-      <Text style={{ fontSize: 22, fontWeight: '600', color: '#2C2C2A' }}>
-        Kailangan ng usage access
-      </Text>
-      <Text style={{ fontSize: 15, lineHeight: 22, color: '#6B6B66' }}>
-        Para masukat ang oras mo sa bawat app, kailangan ng Trickle ng usage
-        access. Hindi ito runtime permission — kailangan mong i-on sa Settings.
+    <View style={s.root}>
+      <Text style={s.title}>Usage access required</Text>
+      <Text style={s.body}>
+        To measure your time in each app, Trickle needs usage access. This isn't a
+        runtime permission — you'll need to enable it in Settings.
       </Text>
 
       <Pressable
         onPress={() => Permissions.openUsageAccessSettings()}
-        style={{ backgroundColor: '#1D9E75', padding: 16, borderRadius: 12 }}>
-        <Text style={{ color: '#FFF', textAlign: 'center', fontWeight: '500' }}>
-          Buksan ang Settings
-        </Text>
+        style={s.primaryButton}>
+        <Text style={s.primaryText}>Open Settings</Text>
       </Pressable>
 
-      <Pressable onPress={onRecheck} style={{ padding: 12 }}>
-        <Text style={{ color: '#1D9E75', textAlign: 'center' }}>
-          Na-on ko na — i-check ulit
-        </Text>
+      <Pressable onPress={onRecheck} style={s.secondaryButton}>
+        <Text style={s.secondaryText}>I've enabled it — check again</Text>
       </Pressable>
 
-      <Text style={{ fontSize: 13, color: '#9C9A92', lineHeight: 20 }}>
-        Sa Settings: hanapin ang "Trickle" sa listahan, tapos i-on ang
-        "Permit usage access."
+      <Text style={s.hint}>
+        In Settings: find "Trickle" in the list, then turn on "Permit usage access."
       </Text>
     </View>
   );
+}
+
+function makeStyles(c: Palette) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: c.bg, padding: spacing.xl, gap: spacing.lg },
+    title: { ...typeScale.heading, color: c.text },
+    body: { ...typeScale.body, color: c.textMuted, lineHeight: 22 },
+    primaryButton: {
+      backgroundColor: c.primary,
+      padding: spacing.lg,
+      borderRadius: radius.md,
+    },
+    primaryText: { ...typeScale.bodyStrong, color: c.primaryOn, textAlign: 'center' },
+    secondaryButton: { padding: spacing.md },
+    secondaryText: { ...typeScale.body, color: c.primary, textAlign: 'center' },
+    hint: { ...typeScale.caption, color: c.textFaint, lineHeight: 20 },
+  });
 }
