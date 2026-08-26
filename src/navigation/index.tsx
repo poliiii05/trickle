@@ -7,6 +7,7 @@ import {
 } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Clock, Hourglass, BarChart3, Flame, Settings2 } from 'lucide-react-native';
 
 import TodayScreen from '../screens/home/TodayScreen';
 import AppListScreen from '../screens/apps/AppListScreen';
@@ -15,6 +16,7 @@ import LimitEditorScreen from '../screens/apps/LimitEditorScreen';
 import HistoryScreen from '../screens/records/HistoryScreen';
 import InsightsScreen from '../screens/records/InsightsScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
+import AppHeader from '../components/AppHeader';
 import { useTheme } from '../theme';
 
 const Tab = createBottomTabNavigator();
@@ -26,19 +28,58 @@ function Tabs() {
   return (
     <Tab.Navigator
       screenOptions={{
-        headerShown: false,
+        header: () => <AppHeader />,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textFaint,
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
+          height: 62,
+          paddingTop: 6,
+          paddingBottom: 8,
         },
       }}>
-      <Tab.Screen name="Today" component={TodayScreen} options={{ title: 'Today' }} />
-      <Tab.Screen name="Apps" component={AppListScreen} options={{ title: 'Limits' }} />
-      <Tab.Screen name="History" component={HistoryScreen} options={{ title: 'History' }} />
-      <Tab.Screen name="Insights" component={InsightsScreen} options={{ title: 'Insights' }} />
-      <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
+      <Tab.Screen
+        name="Today"
+        component={TodayScreen}
+        options={{
+          title: 'Today',
+          tabBarIcon: ({ color, size }) => <Clock color={color} size={size - 2} />,
+        }}
+      />
+      <Tab.Screen
+        name="Apps"
+        component={AppListScreen}
+        options={{
+          title: 'Limits',
+          tabBarIcon: ({ color, size }) => <Hourglass color={color} size={size - 2} />,
+        }}
+      />
+      <Tab.Screen
+        name="History"
+        component={HistoryScreen}
+        options={{
+          title: 'History',
+          tabBarIcon: ({ color, size }) => <BarChart3 color={color} size={size - 2} />,
+        }}
+      />
+      <Tab.Screen
+        name="Insights"
+        component={InsightsScreen}
+        options={{
+          title: 'Insights',
+          tabBarIcon: ({ color, size }) => <Flame color={color} size={size - 2} />,
+        }}
+      />
+      <Tab.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{
+          title: 'Settings',
+          tabBarIcon: ({ color, size }) => <Settings2 color={color} size={size - 2} />,
+        }}
+      />
     </Tab.Navigator>
   );
 }

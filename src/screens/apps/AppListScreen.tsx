@@ -1,13 +1,39 @@
 import React, { useEffect, useMemo } from 'react';
-import { View, Text, FlatList, Pressable, Switch, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  SectionList,
+  Pressable,
+  Switch,
+  StyleSheet,
+  Alert,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useLimitsStore } from '../../store/limitsStore';
 import { formatDuration, formatCountdown } from '../../utils/time';
 import { useLiveLimits } from '../../hooks/useLiveLimits';
+import type { AppLimit } from '../../db/limitsRepo';
 import AppIcon from '../../components/AppIcon';
-import { useTheme, spacing, radius, type as typeScale } from '../../theme';
-import type { Palette } from '../../theme';
+import Card from '../../components/Card';
+import ProgressBar from '../../components/ProgressBar';
 import EmptyState from '../../components/EmptyState';
+import {
+  useTheme,
+  spacing,
+  radius,
+  type as typeScale,
+  type Palette,
+} from '../../theme';
+
+function relativeDay(ms: number | null): string {
+  if (!ms) return 'Paused';
+  const days = Math.floor((Date.now() - ms) / 86400000);
+  if (days <= 0) return 'Paused today';
+  if (days === 1) return 'Paused yesterday';
+  if (days < 7) return `Paused ${days} days ago`;
+  if (days < 30) return `Paused ${Math.floor(days / 7)}w ago`;
+  return `Paused ${Math.floor(days / 30)}mo ago`;
+}
 
 export default function AppListScreen() {
   const nav = useNavigation<any>();
@@ -28,24 +54,108 @@ export default function AppListScreen() {
     return unsub;
   }, [nav, load]);
 
+  const lockedCount = useMemo(
+    () => live.filter(l => l.lockedUntil > Date.now()).length,
+    [live],
+  );
+
+  const confirmToggle = (item: AppLimit, next: boolean) => {
+    if (next) {
+      Alert.alert(
+        'Enable this limit?',
+        `${item.appLabel} will be limited to ${formatDuration(
+          item.allowanceSeconds,
+        )}, then locked for ${formatDuration(item.lockSeconds)}.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Enable', onPress: () => toggle(item.packageName, true) },
+        ],
+      );
+    } else {
+      Alert.alert(
+        'Disable this limit?',
+        `${item.appLabel} will move to Paused. Your settings are kept, and nothing will be blocked until you turn it back on.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Disable', onPress: () => toggle(item.packageName, false) },
+        ],
+      );
+    }
+  };
+
+  const sections = useMemo(() => {
+    const active = limits.filter(l => l.isActive);
+    const paused = limits.filter(l => !l.isActive);
+    const out: { title: string; hint: string; data: AppLimit[] }[] = [];
+
+    if (active.length) {
+      out.push({
+        title: 'Active',
+        hint: `${active.length} enforcing`,
+        data: active,
+      });
+    }
+    if (paused.length) {
+      out.push({
+        title: 'Paused',
+        hint: `${paused.length} on hold`,
+        data: paused,
+      });
+    }
+    return out;
+  }, [limits]);
+
   return (
     <View style={s.root}>
-      <FlatList
-        data={limits}
+      <SectionList
+        contentContainerStyle={s.content}
+        sections={sections}
         keyExtractor={i => i.packageName}
+        stickySectionHeadersEnabled={false}
         ListHeaderComponent={
-          <View style={s.header}>
-            <Text style={s.title}>Limits</Text>
-            <Text style={s.subtitle}>
-              {`${limits.length} apps configured`}
-            </Text>
-          </View>
+          limits.length > 0 ? (
+            <Card label="Overview" style={s.summaryCard}>
+              <View style={s.summaryRow}>
+                <View style={s.summaryItem}>
+                  <Text style={s.summaryValue}>{limits.length}</Text>
+                  <Text style={s.summaryLabel}>configured</Text>
+                </View>
+                <View style={s.summaryDivider} />
+                <View style={s.summaryItem}>
+                  <Text
+                    style={[
+                      s.summaryValue,
+                      lockedCount > 0 && { color: colors.blocked },
+                    ]}>
+                    {lockedCount}
+                  </Text>
+                  <Text style={s.summaryLabel}>locked now</Text>
+                </View>
+              </View>
+            </Card>
+          ) : undefined
         }
-        renderItem={({ item }) => {
+        renderSectionHeader={({ section }) => (
+          <View style={s.sectionHead}>
+            <Text style={s.sectionTitle}>{section.title}</Text>
+            <Text style={s.sectionHint}>{section.hint}</Text>
+          </View>
+        )}
+        renderItem={({ item, section }) => {
+          const paused = section.title === 'Paused';
           const state = liveByPkg.get(item.packageName);
           const remaining = state?.remainingSeconds ?? item.allowanceSeconds;
           const lockedUntil = state?.lockedUntil ?? 0;
-          const locked = lockedUntil > Date.now();
+          const locked = !paused && lockedUntil > Date.now();
+
+          const used = Math.max(0, item.allowanceSeconds - remaining);
+          const usedRatio =
+            item.allowanceSeconds > 0 ? used / item.allowanceSeconds : 0;
+          const lockRatio = locked
+            ? 1 - (lockedUntil - Date.now()) / (item.lockSeconds * 1000)
+            : 0;
+
+          const tone = locked ? 'blocked' : usedRatio > 0.75 ? 'warning' : 'primary';
 
           return (
             <Pressable
@@ -55,37 +165,60 @@ export default function AppListScreen() {
                   appLabel: item.appLabel,
                 })
               }
-              style={s.row}>
-              <AppIcon packageName={item.packageName} />
+              style={({ pressed }) => [
+                s.itemCard,
+                paused && s.itemPaused,
+                pressed && s.itemPressed,
+              ]}>
+              <View style={s.itemHead}>
+                <View style={paused ? s.dimmed : undefined}>
+                  <AppIcon packageName={item.packageName} />
+                </View>
 
-              <View style={s.rowBody}>
-                <Text numberOfLines={1} style={s.appLabel}>
-                  {item.appLabel}
-                </Text>
+                <View style={s.itemTitleBlock}>
+                  <Text
+                    numberOfLines={1}
+                    style={[s.appLabel, paused && s.textDim]}>
+                    {item.appLabel}
+                  </Text>
+                  <Text style={s.itemRule}>
+                    {`${formatDuration(item.allowanceSeconds)} · then ${formatDuration(
+                      item.lockSeconds,
+                    )} lock`}
+                  </Text>
+                </View>
 
-                {locked ? (
-                  <Text style={s.lockedText}>
-                    {`Locked · ${formatCountdown(lockedUntil - Date.now())}`}
-                  </Text>
-                ) : (
-                  <Text style={s.metaText}>
-                    {`${formatDuration(remaining)} left of ${formatDuration(
-                      item.allowanceSeconds,
-                    )}`}
-                  </Text>
-                )}
+                <Switch
+                  value={item.isActive}
+                  onValueChange={v => confirmToggle(item, v)}
+                  disabled={locked}
+                  trackColor={{ true: colors.primary, false: colors.disabled }}
+                />
               </View>
 
-              <Switch
-                value={item.isActive}
-                onValueChange={v => toggle(item.packageName, v)}
-                disabled={locked}
-                trackColor={{ true: colors.primary, false: colors.disabled }}
-              />
+              {paused ? (
+                <Text style={s.pausedNote}>{relativeDay(item.lastActiveAt)}</Text>
+              ) : (
+                <View style={s.itemMeter}>
+                  <View style={s.meterHead}>
+                    <Text
+                      style={[s.meterLabel, locked && { color: colors.blocked }]}>
+                      {locked ? 'Locked' : 'Remaining'}
+                    </Text>
+                    <Text
+                      style={[s.meterValue, locked && { color: colors.blocked }]}>
+                      {locked
+                        ? formatCountdown(lockedUntil - Date.now())
+                        : formatDuration(remaining)}
+                    </Text>
+                  </View>
+                  <ProgressBar progress={locked ? lockRatio : usedRatio} tone={tone} />
+                </View>
+              )}
             </Pressable>
           );
         }}
-          ListEmptyComponent={
+        ListEmptyComponent={
           <EmptyState
             title="No limits yet"
             body="Pick an app and decide how much time you want to give it each day."
@@ -105,22 +238,69 @@ export default function AppListScreen() {
 function makeStyles(c: Palette) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
-    header: { padding: spacing.xl, paddingBottom: spacing.sm },
-    title: { ...typeScale.title, color: c.text },
-    subtitle: { ...typeScale.label, color: c.textMuted, marginTop: spacing.xs },
-    row: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: spacing.xl,
-      paddingVertical: spacing.md + 2,
-      gap: spacing.md + 2,
+    content: { padding: spacing.lg, gap: spacing.md, paddingBottom: 96 },
+
+    summaryCard: { marginBottom: spacing.xs },
+    summaryRow: { flexDirection: 'row', alignItems: 'center' },
+    summaryItem: { flex: 1, gap: 2 },
+    summaryValue: { fontSize: 30, fontWeight: '600', color: c.text },
+    summaryLabel: { ...typeScale.caption, color: c.textMuted },
+    summaryDivider: {
+      width: 1,
+      height: 34,
+      backgroundColor: c.border,
+      marginHorizontal: spacing.lg,
     },
-    rowBody: { flex: 1 },
+
+    sectionHead: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+      paddingHorizontal: spacing.xs,
+      paddingTop: spacing.sm,
+    },
+    sectionTitle: {
+      ...typeScale.micro,
+      color: c.textFaint,
+      textTransform: 'uppercase',
+      letterSpacing: 0.8,
+      fontWeight: '600',
+    },
+    sectionHint: { ...typeScale.micro, color: c.textFaint },
+
+    itemCard: {
+      backgroundColor: c.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: c.border,
+      padding: spacing.lg,
+      gap: spacing.lg,
+    },
+    itemPaused: { backgroundColor: c.bg, gap: spacing.sm },
+    itemPressed: { opacity: 0.7 },
+    dimmed: { opacity: 0.45 },
+    textDim: { color: c.textMuted },
+
+    itemHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    itemTitleBlock: { flex: 1, gap: 2 },
     appLabel: { ...typeScale.body, color: c.text },
-    metaText: { ...typeScale.caption, color: c.textMuted, marginTop: 2 },
-    lockedText: { ...typeScale.caption, color: c.blocked, marginTop: 2 },
-    empty: { padding: spacing.xl },
-    emptyText: { ...typeScale.body, color: c.textFaint, lineHeight: 22 },
+    itemRule: { ...typeScale.caption, color: c.textMuted },
+
+    pausedNote: { ...typeScale.micro, color: c.textFaint },
+
+    itemMeter: { gap: spacing.sm },
+    meterHead: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+    },
+    meterLabel: { ...typeScale.micro, color: c.textFaint },
+    meterValue: {
+      ...typeScale.caption,
+      color: c.text,
+      fontVariant: ['tabular-nums'],
+    },
+
     fab: {
       position: 'absolute',
       right: spacing.xl,

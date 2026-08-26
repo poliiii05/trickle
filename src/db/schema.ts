@@ -1,6 +1,6 @@
 import { getDb, query, run } from './client';
 
-const TARGET_VERSION = 1;
+const TARGET_VERSION = 2;
 
 const MIGRATION_1 = `
 CREATE TABLE IF NOT EXISTS app_limits (
@@ -55,7 +55,9 @@ export async function initDatabase(): Promise<void> {
   if (current < 1) {
     await getDb().execute(MIGRATION_1);
   }
-
+   if (current < 2) {
+    await run('ALTER TABLE app_limits ADD COLUMN last_active_at INTEGER');
+  }
   // Hindi tumatanggap ng parameter binding ang PRAGMA — string interpolation lang.
   await run(`PRAGMA user_version = ${TARGET_VERSION}`);
 }

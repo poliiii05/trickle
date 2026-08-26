@@ -11,6 +11,7 @@ export interface AppLimitRow {
   is_active: number;
   created_at: number;
   updated_at: number;
+  last_active_at: number | null; 
 }
 
 export interface AppLimit {
@@ -22,6 +23,7 @@ export interface AppLimit {
   remainingSeconds: number;
   lockedUntil: number | null;
   isActive: boolean;
+  lastActiveAt: number | null; 
 }
 
 function fromRow(r: AppLimitRow): AppLimit {
@@ -34,6 +36,7 @@ function fromRow(r: AppLimitRow): AppLimit {
     remainingSeconds: r.remaining_seconds,
     lockedUntil: r.locked_until,
     isActive: r.is_active === 1,
+    lastActiveAt: r.last_active_at,
   };
 }
 
@@ -83,10 +86,18 @@ export async function upsertLimit(input: {
 }
 
 export async function setActive(packageName: string, active: boolean): Promise<void> {
-  await run(
-    'UPDATE app_limits SET is_active = ?, updated_at = ? WHERE package_name = ?',
-    [active ? 1 : 0, Date.now(), packageName]
-  );
+  const now = Date.now();
+  if (active) {
+    await run(
+      'UPDATE app_limits SET is_active = 1, updated_at = ? WHERE package_name = ?',
+      [now, packageName],
+    );
+  } else {
+    await run(
+      'UPDATE app_limits SET is_active = 0, last_active_at = ?, updated_at = ? WHERE package_name = ?',
+      [now, now, packageName],
+    );
+  }
 }
 
 export async function deleteLimit(packageName: string): Promise<void> {
