@@ -5,5 +5,7 @@
     <color name="block_text_muted">#A3A199</color>
     <color name="block_primary">#2FBF90</color>
     <color name="block_on_primary">#0A0A09</color>
+    <color name="block_card">#252523</color>
+    <color name="block_card_border">#33322E</color>
     <color name="trickle_notification">#2FBF90</color>
 </resources>

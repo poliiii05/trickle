@@ -40,15 +40,6 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
       </activity>
-
-      <activity
-        android:name=".BlockScreenActivity"
-        android:exported="false"
-        android:launchMode="singleTask"
-        android:excludeFromRecents="true"
-        android:taskAffinity=""
-        android:theme="@style/BlockScreenTheme"
-        android:screenOrientation="portrait" />
     
       <provider
             android:name="androidx.core.content.FileProvider"

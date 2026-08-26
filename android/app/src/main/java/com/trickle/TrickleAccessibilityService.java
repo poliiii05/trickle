@@ -14,7 +14,7 @@ import android.view.accessibility.AccessibilityEvent;
 public class TrickleAccessibilityService extends AccessibilityService {
 
     private static final String TAG = "TrickleA11y";
-    private static final long TICK_MS = 1000L;
+    private static final long TICK_MS = 500L;
 
     private static volatile boolean running = false;
 
@@ -34,6 +34,13 @@ public class TrickleAccessibilityService extends AccessibilityService {
         return running;
     }
 
+     @Override
+    public void onCreate() {
+        super.onCreate();
+        // Restarted by the system — clear any stale in-memory tracking state
+        TrackingEngine.get(this).resetVolatileState();
+    }
+    
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
@@ -44,9 +51,10 @@ public class TrickleAccessibilityService extends AccessibilityService {
         handler.post(tickRunnable);
 
         AccessibilityServiceInfo info = new AccessibilityServiceInfo();
-        info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
+        info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                | AccessibilityEvent.TYPE_WINDOWS_CHANGED;
         info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC;
-        info.notificationTimeout = 100;
+        info.notificationTimeout = 0;
         setServiceInfo(info);
 
         screenReceiver = new ScreenReceiver();
@@ -56,16 +64,19 @@ public class TrickleAccessibilityService extends AccessibilityService {
         registerReceiver(screenReceiver, filter);
 
         KeepAliveService.start(this);
-        Log.d(TAG, "Nakakonekta ang accessibility service");
+        Log.d(TAG, "Accessibility service connected");
     }
 
-       @Override
+           @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
+        int type = event.getEventType();
+        if (type != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                && type != AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
+            return;
+        }
         if (event.getPackageName() == null) return;
 
         String pkg = event.getPackageName().toString();
-
         if (pkg.equals(getPackageName())) return;
         if (pkg.equals("com.android.systemui")) return;
 
@@ -93,7 +104,7 @@ public class TrickleAccessibilityService extends AccessibilityService {
             } catch (Exception ignored) {
             }
         }
-        Log.d(TAG, "Nadiskonekta ang accessibility service");
+        Log.d(TAG, "Accessibility service disconnected");
         return super.onUnbind(intent);
     }
 
