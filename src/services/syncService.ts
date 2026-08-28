@@ -11,17 +11,16 @@ export async function snapshotUsage(backfillDays = 0): Promise<void> {
     const today = await Apps.getUsageStats(startOfToday(), Date.now());
     const key = dayKey(Date.now());
     for (const s of today) {
-      await upsertDaily(s.packageName, key, s.totalSeconds);
+      await upsertDaily(s.packageName, s.appLabel, key, s.totalSeconds);
     }
 
-    // Backfill — unang buksan lang
     for (let i = 1; i <= backfillDays; i++) {
       const start = daysAgo(i);
       const end = daysAgo(i - 1);
       const stats = await Apps.getUsageStats(start, end);
       const day = dayKey(start);
       for (const s of stats) {
-        await upsertDaily(s.packageName, day, s.totalSeconds);
+        await upsertDaily(s.packageName, s.appLabel, day, s.totalSeconds);
       }
     }
   } catch (e) {

@@ -4,136 +4,262 @@ import {
   Text,
   ScrollView,
   Pressable,
-  Alert,
   RefreshControl,
   StyleSheet,
 } from 'react-native';
+import { chartScale, formatAxisValue } from '../../utils/chartScale';
 import { BarChart } from 'react-native-gifted-charts';
-import { getDailyTotals, getTopApps, exportUsageCsv } from '../../db/usageRepo';
+import { Download } from 'lucide-react-native';
+import { useWindowDimensions } from 'react-native';
+import {
+  getDailyInRange,
+  getTopApps,
+  getUsageSummary,
+  exportUsageCsv,
+  type DailyPoint,
+  type AppTotal,
+  type UsageSummary,
+} from '../../db/usageRepo';
+import {
+  buildSeries,
+  bucketNoun,
+  rangeCaption,
+  rangeSinceKey,
+  type RangeId,
+} from '../../utils/ranges';
 import { runSync } from '../../services/syncService';
 import { formatDuration } from '../../utils/time';
 import Files from '../../native/Files';
-import AppIcon from '../../components/AppIcon';
+import Card from '../../components/Card';
+import RangeFilter from '../../components/RangeFilter';
+import AppBarChart from '../../components/AppBarChart';
+import TopAppsChart from '../../components/TopAppsChart';
+import EmptyState from '../../components/EmptyState';
+import { useToast } from '../../components/Toast';
 import {
   useTheme,
   spacing,
   radius,
-  iconSize,
   type as typeScale,
   type Palette,
 } from '../../theme';
 
-const RANGES = [7, 30] as const;
-type Range = (typeof RANGES)[number];
+function bucketKind(id: RangeId): 'day' | 'week' | 'month' {
+  if (id === '1w') return 'day';
+  if (id === '1m') return 'week';
+  return 'month';
+}
 
 export default function HistoryScreen() {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
+  const toast = useToast();
 
-  const [range, setRange] = useState<Range>(7);
-  const [daily, setDaily] = useState<{ day: string; total: number }[]>([]);
-  const [top, setTop] = useState<{ packageName: string; total: number }[]>([]);
+  // Two independent filters — the charts answer different questions
+  const [timeRange, setTimeRange] = useState<RangeId>('1w');
+  const [appsRange, setAppsRange] = useState<RangeId>('1w');
+  const { width: screenWidth } = useWindowDimensions();
+  const [daily, setDaily] = useState<DailyPoint[]>([]);
+  const [summary, setSummary] = useState<UsageSummary | null>(null);
+  const [top, setTop] = useState<AppTotal[]>([]);
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
+  const loadTime = useCallback(async () => {
+    const since = rangeSinceKey(timeRange);
+    setDaily(await getDailyInRange(since));
+    setSummary(await getUsageSummary(since));
+  }, [timeRange]);
+
+  const loadApps = useCallback(async () => {
+    setTop(await getTopApps(rangeSinceKey(appsRange), 8));
+  }, [appsRange]);
+
+  const loadAll = useCallback(async () => {
     setBusy(true);
     try {
       await runSync();
-      setDaily(await getDailyTotals(range));
-      setTop(await getTopApps(range));
+      await loadTime();
+      await loadApps();
     } finally {
       setBusy(false);
     }
-  }, [range]);
+  }, [loadTime, loadApps]);
+
+  
+  useEffect(() => {
+    loadAll();
+    // Only on mount — the two effects below handle filter changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    loadTime();
+  }, [loadTime]);
+
+  useEffect(() => {
+    loadApps();
+  }, [loadApps]);
+
+  const series = useMemo(() => buildSeries(daily, timeRange), [daily, timeRange]);
+  const peak = useMemo(
+    () => Math.max(0, ...series.map(p => Math.round(p.total / 60))),
+    [series],
+  );
+
+  const scale = useMemo(
+    () => chartScale(peak, bucketKind(timeRange)),
+    [peak, timeRange],
+  );
 
   const bars = useMemo(
     () =>
-      daily.map(d => ({
-        value: Math.round(d.total / 60),
-        label: d.day.slice(5).replace('-', '/'),
-        frontColor: colors.primary,
-      })),
-    [daily, colors.primary],
+      series.map(p => {
+        const minutes = Math.round(p.total / 60);
+        return {
+          value: minutes,
+          label: p.label,
+          frontColor: minutes === 0 ? colors.surfaceAlt : colors.primary,
+        };
+      }),
+    [series, colors.primary, colors.surfaceAlt],
   );
+
+  // Fill the available width regardless of how many buckets there are
+    // Card padding (16×2), screen padding (16×2), y-axis label width
+  const plotWidth = Math.max(180, screenWidth - 32 - 32 - 38);
+
+    const layout = useMemo(() => {
+    const n = Math.max(1, series.length);
+    const slot = plotWidth / n;
+    const barWidth = Math.max(10, Math.min(56, Math.round(slot * 0.58)));
+    const gap = Math.max(6, Math.round(slot - barWidth));
+    return { barWidth, gap, initial: Math.round(gap / 2) };
+  }, [series.length, plotWidth]);
+
+  
 
   const onExport = async () => {
     try {
       const csv = await exportUsageCsv();
-      await Files.shareCsv(`trickle-${Date.now()}.csv`, csv);
-    } catch (e) {
-      Alert.alert('Export failed', String(e));
+      await Files.shareCsv(`trickle-usage-${Date.now()}.csv`, csv);
+    } catch {
+      toast.show('Export failed', 'error');
     }
   };
+
+  const hasAnyData = daily.length > 0 || top.length > 0;
+
+  if (!hasAnyData && !busy) {
+    return (
+      <ScrollView
+        style={s.root}
+        contentContainerStyle={s.content}
+        refreshControl={
+          <RefreshControl refreshing={busy} onRefresh={loadAll} tintColor={colors.primary} />
+        }>
+        <EmptyState
+          title="No usage recorded yet"
+          body="Trickle takes a snapshot each time you open it. Come back tomorrow and you'll see your first chart."
+        />
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView
       style={s.root}
       contentContainerStyle={s.content}
       refreshControl={
-        <RefreshControl
-          refreshing={busy}
-          onRefresh={load}
-          tintColor={colors.primary}
-        />
+        <RefreshControl refreshing={busy} onRefresh={loadAll} tintColor={colors.primary} />
       }>
-      <View style={s.pills}>
-        {RANGES.map(r => {
-          const active = range === r;
-          return (
-            <Pressable
-              key={r}
-              onPress={() => setRange(r)}
-              style={[s.pill, active ? s.pillActive : s.pillIdle]}>
-              <Text style={[s.pillText, active ? s.pillTextActive : s.pillTextIdle]}>
-                {`${r} days`}
-              </Text>
-            </Pressable>
-          );
-        })}
+      {/* ---------- Screen time ---------- */}
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>Screen time</Text>
+        <RangeFilter value={timeRange} onChange={setTimeRange} />
       </View>
 
-      <View style={s.card}>
-        <Text style={s.cardLabel}>Screen time per day (minutes)</Text>
-        {bars.length > 0 ? (
-          <BarChart
+      <Card label="Summary">
+        <View style={s.statGrid}>
+          <View style={s.statItem}>
+            <Text style={s.statValue}>
+              {formatDuration(summary?.dailyAverage ?? 0)}
+            </Text>
+            <Text style={s.statLabel}>daily average</Text>
+          </View>
+          <View style={s.statDivider} />
+          <View style={s.statItem}>
+            <Text style={[s.statValue, { color: colors.accentDeep }]}>
+              {formatDuration(summary?.peakTotal ?? 0)}
+            </Text>
+            <Text style={s.statLabel}>busiest day</Text>
+          </View>
+        </View>
+
+        <View style={s.statFooter}>
+          <Text style={s.statFooterText}>
+            {`${formatDuration(summary?.total ?? 0)} total across ${
+              summary?.trackedDays ?? 0
+            } tracked ${summary?.trackedDays === 1 ? 'day' : 'days'}`}
+          </Text>
+        </View>
+      </Card>
+
+            <Card label={`Screen time ${bucketNoun(timeRange)}`}>
+        <View style={s.chartHead}>
+          <Text style={s.chartRange}>{rangeCaption(timeRange)}</Text>
+          <Text style={s.chartHint}>{formatAxisValue(scale.max)} max</Text>
+        </View>
+
+        <View style={s.chartBody}>
+            <BarChart
             data={bars}
-            barWidth={range === 7 ? 24 : 8}
-            spacing={range === 7 ? 16 : 4}
-            noOfSections={4}
+            width={plotWidth}
+            barWidth={layout.barWidth}
+            spacing={layout.gap}
+            initialSpacing={layout.initial}
+            endSpacing={layout.initial}
+            maxValue={scale.max}
+            noOfSections={scale.sections}
+            formatYLabel={(v: string) => formatAxisValue(Number(v))}
             yAxisThickness={0}
-            xAxisThickness={0}
+            xAxisThickness={1.5}
+            xAxisColor={colors.borderStrong}
+            barBorderTopLeftRadius={4}
+            barBorderTopRightRadius={4}
             xAxisLabelTextStyle={s.chartXLabel}
             yAxisTextStyle={s.chartYLabel}
+            yAxisLabelWidth={38}
+            disableScroll
             hideRules
           />
-        ) : (
-          <Text style={s.emptyText}>No data yet.</Text>
-        )}
+        </View>
+      </Card>
+
+      {/* ---------- Top apps ---------- */}
+      <View style={[s.section, s.sectionSpaced]}>
+        <Text style={s.sectionTitle}>Top apps</Text>
+        <RangeFilter value={appsRange} onChange={setAppsRange} />
       </View>
 
-      <View style={s.section}>
-        <Text style={s.sectionLabel}>Most used</Text>
-        {top.length === 0 ? (
-          <Text style={s.emptyText}>Nothing tracked yet.</Text>
+      <Card label={rangeCaption(appsRange)}>
+                {top.length > 0 ? (
+          <TopAppsChart data={top} bucket={bucketKind(appsRange)} />
         ) : (
-          top.map(t => (
-            <View key={t.packageName} style={s.row}>
-              <AppIcon packageName={t.packageName} size={iconSize.sm} />
-              <Text numberOfLines={1} style={s.rowLabel}>
-                {t.packageName}
-              </Text>
-              <Text style={s.rowValue}>{formatDuration(t.total)}</Text>
-            </View>
-          ))
+          <Text style={s.emptyText}>Nothing tracked in this range.</Text>
         )}
-      </View>
+      </Card>
+
+      <Card label="Full breakdown">
+        {top.length > 0 ? (
+          <AppBarChart data={top} />
+        ) : (
+          <Text style={s.emptyText}>Nothing tracked in this range.</Text>
+        )}
+      </Card>
 
       <Pressable onPress={onExport} style={s.exportButton}>
-        <Text style={s.exportText}>Export as CSV</Text>
+        <Download color={colors.text} size={16} />
+        <Text style={s.exportText}>Export all data as CSV</Text>
       </Pressable>
     </ScrollView>
   );
@@ -142,51 +268,56 @@ export default function HistoryScreen() {
 function makeStyles(c: Palette) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
-    content: { padding: spacing.xl, gap: spacing.xl },
-    chartXLabel: { fontSize: 9, color: c.textFaint },
-    chartYLabel: { fontSize: 10, color: c.textFaint },
-    pills: { flexDirection: 'row', gap: spacing.sm },
-    pill: {
-      paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.sm,
-      borderRadius: radius.pill,
-    },
-    pillActive: { backgroundColor: c.primary },
-    pillIdle: { backgroundColor: c.surfaceAlt },
-    pillText: { ...typeScale.label },
-    pillTextActive: { color: c.primaryOn },
-    pillTextIdle: { color: c.text },
+    content: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
 
-    card: {
-      backgroundColor: c.surface,
-      borderRadius: radius.lg,
-      padding: spacing.lg,
-    },
-    cardLabel: { ...typeScale.label, color: c.textMuted, marginBottom: spacing.md },
+    section: { gap: spacing.md },
+    sectionSpaced: { marginTop: spacing.lg },
+    sectionTitle: { ...typeScale.heading, color: c.text },
 
-    section: { gap: spacing.xs },
-    sectionLabel: {
-      ...typeScale.label,
-      color: c.textMuted,
-      marginBottom: spacing.sm,
+    statGrid: { flexDirection: 'row', alignItems: 'center' },
+    statItem: { flex: 1, gap: 2 },
+    statValue: { fontSize: 26, fontWeight: '700', color: c.text },
+    statLabel: { ...typeScale.micro, color: c.textFaint },
+    statDivider: {
+      width: 1,
+      height: 36,
+      backgroundColor: c.border,
+      marginHorizontal: spacing.lg,
     },
+    statFooter: {
+      marginTop: spacing.lg,
+      paddingTop: spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: c.border,
+    },
+    statFooterText: { ...typeScale.micro, color: c.textMuted },
 
-    row: {
+      chartBody: { marginLeft: -spacing.xs },
+    chartHead: {
       flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.md,
-      paddingVertical: spacing.sm + 2,
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+      marginBottom: spacing.md,
     },
-    rowLabel: { flex: 1, ...typeScale.body, color: c.text },
-    rowValue: { ...typeScale.label, color: c.textMuted },
+    chartRange: { ...typeScale.caption, color: c.text, fontWeight: '600' },
+    chartHint: { ...typeScale.micro, color: c.textFaint },
+    chartXLabel: { fontSize: 10, color: c.textFaint },
+    chartYLabel: { fontSize: 10, color: c.textFaint },
 
-    emptyText: { ...typeScale.body, color: c.textFaint },
+    emptyText: { ...typeScale.caption, color: c.textFaint },
 
     exportButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
       padding: spacing.md + 2,
       borderRadius: radius.md,
-      backgroundColor: c.surfaceAlt,
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.border,
+      marginTop: spacing.xs,
     },
-    exportText: { ...typeScale.body, color: c.text, textAlign: 'center' },
+    exportText: { ...typeScale.body, color: c.text },
   });
 }

@@ -8,14 +8,13 @@ import {
 } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Clock, Hourglass, BarChart3, Flame, Settings2 } from 'lucide-react-native';
+import { Clock, Hourglass, BarChart3, Settings2 } from 'lucide-react-native';
 
 import TodayScreen from '../screens/home/TodayScreen';
 import AppListScreen from '../screens/apps/AppListScreen';
 import AppPickerScreen from '../screens/apps/AppPickerScreen';
 import LimitEditorScreen from '../screens/apps/LimitEditorScreen';
-import HistoryScreen from '../screens/records/HistoryScreen';
-import InsightsScreen from '../screens/records/InsightsScreen';
+import StatsScreen from '../screens/records/StatsScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import AppHeader from '../components/AppHeader';
 import { useTheme, radius } from '../theme';
@@ -58,12 +57,11 @@ const renderHeader = () => <AppHeader />;
 function Tabs() {
   const { colors } = useTheme();
 
-  const icons = useMemo(
+    const icons = useMemo(
     () => ({
       today: makeTabIcon(Clock, colors.primarySoft),
       limits: makeTabIcon(Hourglass, colors.primarySoft),
-      history: makeTabIcon(BarChart3, colors.primarySoft),
-      insights: makeTabIcon(Flame, colors.primarySoft),
+      stats: makeTabIcon(BarChart3, colors.primarySoft),
       settings: makeTabIcon(Settings2, colors.primarySoft),
     }),
     [colors.primarySoft],
@@ -96,14 +94,9 @@ function Tabs() {
         options={{ title: 'Limits', tabBarIcon: icons.limits }}
       />
       <Tab.Screen
-        name="History"
-        component={HistoryScreen}
-        options={{ title: 'History', tabBarIcon: icons.history }}
-      />
-      <Tab.Screen
-        name="Insights"
-        component={InsightsScreen}
-        options={{ title: 'Insights', tabBarIcon: icons.insights }}
+        name="Stats"
+        component={StatsScreen}
+        options={{ title: 'Stats', tabBarIcon: icons.stats }}
       />
       <Tab.Screen
         name="Settings"

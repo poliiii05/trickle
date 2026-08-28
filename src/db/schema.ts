@@ -1,6 +1,17 @@
 import { getDb, query, run } from './client';
 
-const TARGET_VERSION = 2;
+/** Adds a column only if it isn't already there — safe to run repeatedly. */
+async function ensureColumn(
+  table: string,
+  column: string,
+  definition: string,
+): Promise<void> {
+  const cols = await query<{ name: string }>(`PRAGMA table_info(${table})`);
+  if (cols.some(c => c.name === column)) return;
+  await run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
+const TARGET_VERSION = 3;
 
 const MIGRATION_1 = `
 CREATE TABLE IF NOT EXISTS app_limits (
@@ -50,14 +61,15 @@ export async function initDatabase(): Promise<void> {
   const rows = await query<{ user_version: number }>('PRAGMA user_version');
   const current = rows[0]?.user_version ?? 0;
 
-  if (current >= TARGET_VERSION) return;
-
   if (current < 1) {
     await getDb().execute(MIGRATION_1);
   }
-   if (current < 2) {
-    await run('ALTER TABLE app_limits ADD COLUMN last_active_at INTEGER');
+
+  // Idempotent — these run every launch but only act when the column is missing.
+  await ensureColumn('app_limits', 'last_active_at', 'INTEGER');
+  await ensureColumn('usage_daily', 'app_label', 'TEXT');
+
+  if (current < TARGET_VERSION) {
+    await run(`PRAGMA user_version = ${TARGET_VERSION}`);
   }
-  // Hindi tumatanggap ng parameter binding ang PRAGMA — string interpolation lang.
-  await run(`PRAGMA user_version = ${TARGET_VERSION}`);
 }
