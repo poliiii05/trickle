@@ -4,17 +4,19 @@ import {
   Text,
   TextInput,
   Pressable,
-  Alert,
   ScrollView,
   StyleSheet,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { Minus, Plus, Lock, AlertCircle } from 'lucide-react-native';
+import { Minus, Plus, Lock, AlertCircle, Play, PauseCircle, Trash2 } from 'lucide-react-native';
 import { useLimitsStore } from '../../store/limitsStore';
 import { isLocked } from '../../db/limitsRepo';
 import { splitDuration, joinDuration, formatCountdown, formatDuration } from '../../utils/time';
 import AppIcon from '../../components/AppIcon';
 import Card from '../../components/Card';
+
+import ConfirmModal from '../../components/ConfirmModal';
+import { useToast } from '../../components/Toast';
 import {
   useTheme,
   spacing,
@@ -57,6 +59,8 @@ export default function LimitEditorScreen() {
   const { byPackage, save, remove, toggle, load } = useLimitsStore();
   const existing = byPackage(packageName);
   const locked = existing ? isLocked(existing) : false;
+  const toast = useToast();
+  const [dialog, setDialog] = useState<'enable' | 'disable' | 'remove' | null>(null);
 
   // Text state so the user can clear a field and retype freely
   const [allowanceText, setAllowanceText] = useState('20');
@@ -79,57 +83,43 @@ export default function LimitEditorScreen() {
   // --- Validation ---
   const allowanceError =
     allowanceText === ''
-      ? null
+      ? 'Enter a number.'
       : allowance < 1
       ? 'Must be at least 1 minute.'
       : allowance > MAX_ALLOWANCE
-      ? `Cannot exceed ${MAX_ALLOWANCE} minutes (24 hours).`
+      ? `Too high — the maximum is ${MAX_ALLOWANCE} minutes (24 hours).`
       : null;
 
   const lockError =
-    hours === 0 && minutes === 0 ? 'Lock must be at least 1 minute.' : null;
+    hours > MAX_HOURS
+      ? `Hours cannot exceed ${MAX_HOURS}.`
+      : minutes > MAX_MINUTES
+      ? `Minutes cannot exceed ${MAX_MINUTES}.`
+      : hours === 0 && minutes === 0
+      ? 'Lock must be at least 1 minute.'
+      : null;
 
-  const canSave =
-    !locked &&
-    allowanceText !== '' &&
-    !allowanceError &&
-    !lockError;
+  const canSave = !locked && !allowanceError && !lockError;
 
   // --- Editing ---
-  const onAllowanceChange = (text: string) => {
-    const clean = sanitize(text);
-    if (clean !== '' && toInt(clean) > MAX_ALLOWANCE) return;   // block the keystroke
-    setAllowanceText(clean);
+   const onAllowanceChange = (text: string) => {
+    setAllowanceText(sanitize(text));
   };
 
   const onHoursChange = (text: string) => {
     const clean = sanitize(text);
-    if (clean !== '' && toInt(clean) > MAX_HOURS) return;
     setHoursText(clean);
-    // 23h is the ceiling — minutes can never push past 23:59
     if (toInt(clean) === MAX_HOURS && minutes > MAX_MINUTES) {
       setMinsText(String(MAX_MINUTES));
     }
   };
 
   const onMinsChange = (text: string) => {
-    const clean = sanitize(text);
-    if (clean !== '' && toInt(clean) > MAX_MINUTES) return;
-    setMinsText(clean);
+    setMinsText(sanitize(text));
   };
 
-  const blur = (
-    text: string,
-    setter: (v: string) => void,
-    fallback: number,
-    max: number,
-  ) => {
-    if (text === '') {
-      setter(String(fallback));
-      return;
-    }
-    const n = Math.min(max, toInt(text));
-    setter(String(n));
+  const blur = (text: string, setter: (v: string) => void, fallback: number) => {
+    if (text === '') setter(String(fallback));
   };
 
   const step = (
@@ -152,70 +142,39 @@ export default function LimitEditorScreen() {
   };
 
   // --- Actions ---
-  const onSave = async () => {
+   const onSave = async () => {
     if (!canSave) return;
+    const isNew = !existing;
     await save({
       packageName,
       appLabel,
       allowanceSeconds: allowance * 60,
       lockSeconds,
     });
+    toast.show(isNew ? 'Limit set' : 'Limit updated');
     nav.goBack();
   };
 
-  const onDisable = () => {
-    Alert.alert(
-      'Disable this limit?',
-      `${appLabel} will move to Paused. Your settings are kept, and nothing will be blocked until you turn it back on.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Disable',
-          onPress: async () => {
-            await toggle(packageName, false);
-            nav.goBack();
-          },
-        },
-      ],
-    );
+  const runDisable = async () => {
+    setDialog(null);
+    await toggle(packageName, false);
+    toast.show(`${appLabel} moved to Paused`, 'info');
+    nav.goBack();
   };
 
-  const onEnable = () => {
-    Alert.alert(
-      'Enable this limit?',
-      `${appLabel} will be limited to ${formatDuration(
-        allowance * 60,
-      )}, then locked for ${formatDuration(lockSeconds)}.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Enable',
-          onPress: async () => {
-            await toggle(packageName, true);
-            nav.goBack();
-          },
-        },
-      ],
-    );
+  const runEnable = async () => {
+    setDialog(null);
+    await toggle(packageName, true);
+    toast.show(`${appLabel} limit enabled`);
+    nav.goBack();
   };
 
-  const onRemove = () => {
-    Alert.alert(
-      'Remove limit permanently?',
-      `This deletes the limit for ${appLabel}, including its settings. This can't be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            await remove(packageName);
-            await load();
-            nav.goBack();
-          },
-        },
-      ],
-    );
+  const runRemove = async () => {
+    setDialog(null);
+    await remove(packageName);
+    await load();
+    toast.show('Limit removed', 'info');
+    nav.goBack();
   };
 
   return (
@@ -275,12 +234,11 @@ export default function LimitEditorScreen() {
           </Pressable>
 
           <View style={s.stepperValue}>
-            <TextInput
+              <TextInput
               value={allowanceText}
               onChangeText={onAllowanceChange}
-              onBlur={() => blur(allowanceText, setAllowanceText, 20, MAX_ALLOWANCE)}
+              onBlur={() => blur(allowanceText, setAllowanceText, 20)}
               keyboardType="number-pad"
-              maxLength={4}
               editable={!locked}
               selectTextOnFocus
               style={[s.stepperInput, !!allowanceError && s.inputError]}
@@ -314,15 +272,14 @@ export default function LimitEditorScreen() {
                 style={[s.stepButtonSm, locked && s.stepDisabled]}>
                 <Minus color={locked ? colors.textFaint : colors.text} size={14} />
               </Pressable>
-              <TextInput
+                <TextInput
                 value={hoursText}
                 onChangeText={onHoursChange}
-                onBlur={() => blur(hoursText, setHoursText, 0, MAX_HOURS)}
+                onBlur={() => blur(hoursText, setHoursText, 0)}
                 keyboardType="number-pad"
-                maxLength={2}
                 editable={!locked}
                 selectTextOnFocus
-                style={s.dualInput}
+                style={[s.dualInput, hours > MAX_HOURS && s.inputError]}
               />
               <Pressable
                 onPress={() => step(hoursText, setHoursText, 1, 0, MAX_HOURS)}
@@ -342,15 +299,14 @@ export default function LimitEditorScreen() {
                 style={[s.stepButtonSm, locked && s.stepDisabled]}>
                 <Minus color={locked ? colors.textFaint : colors.text} size={14} />
               </Pressable>
-              <TextInput
+                <TextInput
                 value={minsText}
                 onChangeText={onMinsChange}
-                onBlur={() => blur(minsText, setMinsText, 0, MAX_MINUTES)}
+                onBlur={() => blur(minsText, setMinsText, 0)}
                 keyboardType="number-pad"
-                maxLength={2}
                 editable={!locked}
                 selectTextOnFocus
-                style={s.dualInput}
+                style={[s.dualInput, minutes > MAX_MINUTES && s.inputError]}
               />
               <Pressable
                 onPress={() => step(minsText, setMinsText, 5, 0, MAX_MINUTES)}
@@ -369,27 +325,34 @@ export default function LimitEditorScreen() {
         )}
       </Card>
 
-      {!locked && (
+            {!locked && (
         <View style={s.presetBlock}>
-          <Text style={s.presetHead}>Presets</Text>
-          <View style={s.presetWrap}>
-            {PRESETS.map(p => {
-              const active =
-                p.allowance === allowance &&
-                p.lockH === hours &&
-                p.lockM === minutes;
-              return (
-                <Pressable
-                  key={p.label}
-                  onPress={() => applyPreset(p)}
-                  style={[s.preset, active && s.presetActive]}>
-                  <Text style={[s.presetText, active && s.presetTextActive]}>
+          <Text style={s.presetHead}>Quick presets</Text>
+          {PRESETS.map(p => {
+            const active =
+              p.allowance === allowance && p.lockH === hours && p.lockM === minutes;
+            const cycle = p.allowance * 60 + joinDuration(p.lockH, p.lockM);
+            return (
+              <Pressable
+                key={p.label}
+                onPress={() => applyPreset(p)}
+                style={[s.presetCard, active && s.presetCardActive]}>
+                <View style={s.presetBody}>
+                  <Text style={[s.presetTitle, active && s.presetTitleActive]}>
                     {p.label}
                   </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+                  <Text style={[s.presetMeta, active && s.presetMetaActive]}>
+                    {`${formatDuration(p.allowance * 60)} use · ${formatDuration(
+                      joinDuration(p.lockH, p.lockM),
+                    )} lock`}
+                  </Text>
+                </View>
+                <Text style={[s.presetCycle, active && s.presetMetaActive]}>
+                  {formatDuration(cycle)}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       )}
 
@@ -403,20 +366,55 @@ export default function LimitEditorScreen() {
       {existing && !locked && (
         <>
           {existing.isActive ? (
-            <Pressable onPress={onDisable} style={s.secondaryButton}>
+            <Pressable onPress={() => setDialog('disable')} style={s.secondaryButton}>
               <Text style={s.secondaryText}>Disable limit</Text>
             </Pressable>
           ) : (
-            <Pressable onPress={onEnable} style={s.secondaryButton}>
+            <Pressable onPress={() => setDialog('enable')} style={s.secondaryButton}>
               <Text style={s.secondaryTextPrimary}>Enable limit</Text>
             </Pressable>
           )}
-
-          <Pressable onPress={onRemove} style={s.removeButton}>
+           <Pressable onPress={() => setDialog('remove')} style={s.removeButton}>
             <Text style={s.removeText}>Remove permanently</Text>
           </Pressable>
         </>
       )}
+
+       <ConfirmModal
+        visible={dialog === 'disable'}
+        tone="blocked"
+        icon={<PauseCircle color={colors.blocked} size={22} />}
+        title="Pause this limit?"
+        body={`${appLabel} moves to Paused. Your settings are kept, and nothing will be blocked until you turn it back on.`}
+        confirmLabel="Pause"
+        onConfirm={runDisable}
+        onCancel={() => setDialog(null)}
+      />
+
+      <ConfirmModal
+        visible={dialog === 'enable'}
+        tone="primary"
+        icon={<Play color={colors.primary} size={22} />}
+        title="Enable this limit?"
+        body={`${appLabel} will be limited to ${formatDuration(
+          allowance * 60,
+        )}, then locked for ${formatDuration(lockSeconds)}.`}
+        confirmLabel="Enable"
+        onConfirm={runEnable}
+        onCancel={() => setDialog(null)}
+      />
+
+      <ConfirmModal
+        visible={dialog === 'remove'}
+        tone="danger"
+        icon={<Trash2 color={colors.danger} size={22} />}
+        title="Remove limit permanently?"
+        body={`This deletes the limit for ${appLabel}, including its settings. This can't be undone.`}
+        confirmLabel="Remove"
+        onConfirm={runRemove}
+        onCancel={() => setDialog(null)}
+      />
+
     </ScrollView>
   );
 }
@@ -490,26 +488,36 @@ function makeStyles(c: Palette) {
     helperText: { ...typeScale.micro, color: c.textFaint, marginTop: spacing.sm },
     errorText: { ...typeScale.micro, color: c.danger, marginTop: spacing.sm },
 
-    presetBlock: { gap: spacing.sm, marginTop: spacing.xs },
+        presetBlock: { gap: spacing.sm, marginTop: spacing.xs },
     presetHead: {
       ...typeScale.micro,
       color: c.textFaint,
       textTransform: 'uppercase',
       letterSpacing: 0.8,
+      marginBottom: spacing.xs,
     },
-    presetWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-    preset: {
-      paddingHorizontal: spacing.md + 2,
-      paddingVertical: spacing.sm + 2,
-      borderRadius: radius.pill,
-      backgroundColor: c.surfaceAlt,
-      borderWidth: 1,
+    presetCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      borderRadius: radius.md,
+      backgroundColor: c.surface,
+      borderWidth: 1.5,
       borderColor: c.border,
     },
-    presetActive: { backgroundColor: c.primary, borderColor: c.primary },
-    presetText: { ...typeScale.caption, color: c.text },
-    presetTextActive: { color: c.primaryOn, fontWeight: '600' },
-
+    presetCardActive: { borderColor: c.primary, backgroundColor: c.primarySoft },
+    presetBody: { flex: 1, gap: 2 },
+    presetTitle: { ...typeScale.body, color: c.text },
+    presetTitleActive: { color: c.primaryDeep, fontWeight: '600' },
+    presetMeta: { ...typeScale.micro, color: c.textFaint },
+    presetMetaActive: { color: c.primaryDeep },
+    presetCycle: {
+      ...typeScale.caption,
+      color: c.textMuted,
+      fontVariant: ['tabular-nums'],
+    },
     saveButton: {
       backgroundColor: c.primary,
       padding: spacing.lg,

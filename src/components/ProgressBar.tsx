@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useTheme, radius, type Palette } from '../theme';
+import { useTheme, type Palette } from '../theme';
 
 export default function ProgressBar({
   progress,
@@ -8,7 +8,7 @@ export default function ProgressBar({
   height = 6,
 }: {
   progress: number;
-  tone?: 'primary' | 'warning' | 'blocked';
+  tone?: 'primary' | 'accent' | 'warning' | 'blocked';
   height?: number;
 }) {
   const { colors } = useTheme();
@@ -20,6 +20,8 @@ export default function ProgressBar({
       ? colors.blocked
       : tone === 'warning'
       ? colors.warning
+      : tone === 'accent'
+      ? colors.accent
       : colors.primary;
 
   return (

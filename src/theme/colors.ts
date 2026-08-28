@@ -1,8 +1,10 @@
 export interface Palette {
   bg: string;
+  bgElevated: string;
   surface: string;
   surfaceAlt: string;
   border: string;
+  borderStrong: string;
 
   text: string;
   textMuted: string;
@@ -12,13 +14,22 @@ export interface Palette {
   primaryOn: string;
   primarySoft: string;
   primaryDeep: string;
+  primaryBorder: string;
+
+  accent: string;
+  accentOn: string;
+  accentSoft: string;
+  accentDeep: string;
+  accentBorder: string;
 
   warning: string;
   warningSoft: string;
 
   blocked: string;
+  blockedOn: string;
   blockedSoft: string;
   blockedDeep: string;
+  blockedBorder: string;
 
   danger: string;
   dangerSoft: string;
@@ -27,57 +38,79 @@ export interface Palette {
 }
 
 export const lightPalette: Palette = {
-  bg: '#FAFAF8',
+  bg: '#F7F7F4',
+  bgElevated: '#FFFFFF',
   surface: '#FFFFFF',
-  surfaceAlt: '#EFEEE9',
-  border: '#EFEEE9',
+  surfaceAlt: '#EDECE6',
+  border: '#E4E2DA',
+  borderStrong: '#D2CFC4',
 
-  text: '#2C2C2A',
-  textMuted: '#6B6B66',
-  textFaint: '#9C9A92',
+  text: '#22221F',
+  textMuted: '#63625B',
+  textFaint: '#96948A',
 
-  primary: '#1D9E75',
+  primary: '#0E9E72',
   primaryOn: '#FFFFFF',
-  primarySoft: '#E1F5EE',
-  primaryDeep: '#0F6E56',
+  primarySoft: '#DFF3EB',
+  primaryDeep: '#0A6E50',
+  primaryBorder: '#7FD3B8',
 
-  warning: '#BA7517',
-  warningSoft: '#FDF3E3',
+  accent: '#C97A16',
+  accentOn: '#FFFFFF',
+  accentSoft: '#FBEFDC',
+  accentDeep: '#8A5209',
+  accentBorder: '#E8B871',
 
-  blocked: '#D85A30',
-  blockedSoft: '#FAECE7',
-  blockedDeep: '#993C1D',
+  warning: '#B8760F',
+  warningSoft: '#FBEFDC',
+
+  blocked: '#D2532A',
+  blockedOn: '#FFFFFF',
+  blockedSoft: '#FAE8E1',
+  blockedDeep: '#8F3417',
+  blockedBorder: '#EDA184',
 
   danger: '#A32D2D',
-  dangerSoft: '#FCEBEB',
+  dangerSoft: '#FBEAEA',
 
-  disabled: '#C9C7BF',
+  disabled: '#C7C4B9',
 };
 
 export const darkPalette: Palette = {
-  bg: '#1A1A18',
-  surface: '#252523',
-  surfaceAlt: '#302F2C',
-  border: '#33322E',
+  bg: '#161614',
+  bgElevated: '#1E1E1B',
+  surface: '#232320',
+  surfaceAlt: '#2E2E2A',
+  border: '#33322D',
+  borderStrong: '#464540',
 
-  text: '#E5E5E0',
-  textMuted: '#A3A199',
-  textFaint: '#7A786F',
+  text: '#EAE9E3',
+  textMuted: '#A5A39A',
+  textFaint: '#7C7A71',
 
-  primary: '#2FBF90',
-  primaryOn: '#0A0A09',
-  primarySoft: '#14332B',
-  primaryDeep: '#7FDCBD',
+  primary: '#2FC594',
+  primaryOn: '#08130F',
+  primarySoft: '#12332A',
+  primaryDeep: '#8AE3C4',
+  primaryBorder: '#1F6E56',
 
-  warning: '#D99A3E',
-  warningSoft: '#332A18',
+  accent: '#E8A33F',
+  accentOn: '#1A1104',
+  accentSoft: '#33260F',
+  accentDeep: '#F5CB8B',
+  accentBorder: '#7A5A22',
 
-  blocked: '#E87A55',
-  blockedSoft: '#3A2219',
-  blockedDeep: '#F0A98D',
+  warning: '#DFA24A',
+  warningSoft: '#33260F',
 
-  danger: '#E06666',
+  blocked: '#EC7B52',
+  blockedOn: '#1A0C06',
+  blockedSoft: '#382016',
+  blockedDeep: '#F7B398',
+  blockedBorder: '#7D4229',
+
+  danger: '#E36B6B',
   dangerSoft: '#3A1E1E',
 
-  disabled: '#4A4844',
+  disabled: '#4B4945',
 };

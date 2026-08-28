@@ -15,6 +15,7 @@ import Apps from '../../native/Apps';
 import type { UsageStat } from '../../native/types';
 import { startOfToday, formatDuration } from '../../utils/time';
 import { useLimitsStore } from '../../store/limitsStore';
+import { useLiveLimits } from '../../hooks/useLiveLimits';
 import PermissionGate from './PermissionGate';
 import Card from '../../components/Card';
 import ProgressBar from '../../components/ProgressBar';
@@ -27,7 +28,8 @@ import {
   type as typeScale,
   type Palette,
 } from '../../theme';
-import { Lock, Info } from 'lucide-react-native';
+
+type LimitState = 'none' | 'running' | 'locked';
 
 export default function TodayScreen() {
   const nav = useNavigation<any>();
@@ -35,6 +37,8 @@ export default function TodayScreen() {
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   const { limits, load: loadLimits } = useLimitsStore();
+  const live = useLiveLimits();
+
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [stats, setStats] = useState<UsageStat[]>([]);
   const [loading, setLoading] = useState(false);
@@ -58,18 +62,40 @@ export default function TodayScreen() {
 
   useEffect(() => {
     load();
+
+    // Reload whenever this tab comes back into focus — a limit may have
+    // been added or removed in the editor while we were away.
+    const unsubFocus = nav.addListener('focus', load);
+
     const sub = AppState.addEventListener('change', next => {
       if (appState.current?.match(/inactive|background/) && next === 'active') {
         load();
       }
       appState.current = next;
     });
-    return () => sub.remove();
-  }, [load]);
 
-  const limited = useMemo(
-    () => new Set(limits.map(l => l.packageName)),
-    [limits],
+    return () => {
+      unsubFocus();
+      sub.remove();
+    };
+  }, [load, nav]);
+
+  const liveByPkg = useMemo(
+    () => new Map(live.map(l => [l.packageName, l])),
+    [live],
+  );
+
+  /** Only active limits count — paused and removed apps show nothing. */
+  const limitStateFor = useCallback(
+    (packageName: string): LimitState => {
+      const config = limits.find(l => l.packageName === packageName);
+      if (!config || !config.isActive) return 'none';
+
+      const state = liveByPkg.get(packageName);
+      if (state && state.lockedUntil > Date.now()) return 'locked';
+      return 'running';
+    },
+    [limits, liveByPkg],
   );
 
   if (hasPermission === null) {
@@ -99,44 +125,47 @@ export default function TodayScreen() {
           tintColor={colors.primary}
         />
       }
-                ListHeaderComponent={
-            <View style={s.headerBlock}>
-              <Card label="Screen time today" style={s.heroCard}>
-                <Text style={s.heroValue}>{formatDuration(total)}</Text>
-                <Text style={s.heroMeta}>
-                  {`across ${stats.length} ${stats.length === 1 ? 'app' : 'apps'}`}
-                </Text>
+      ListHeaderComponent={
+        <View style={s.headerBlock}>
+          <Card label="Screen time today" style={s.heroCard}>
+            <Text style={s.heroValue}>{formatDuration(total)}</Text>
+            <Text style={s.heroMeta}>
+              {`across ${stats.length} ${stats.length === 1 ? 'app' : 'apps'}`}
+            </Text>
 
-                {busiest && (
-                  <View style={s.heroBreakdown}>
-                    <View style={s.heroBreakdownHead}>
-                      <Text style={s.heroBreakdownLabel}>Most used</Text>
-                      <Text style={s.heroBreakdownValue}>
-                        {`${busiest.appLabel} · ${formatDuration(busiest.totalSeconds)}`}
-                      </Text>
-                    </View>
-                    <ProgressBar progress={busiestShare} />
-                  </View>
-                )}
-
-                <View style={s.legend}>
-                  <Info color={colors.textFaint} size={13} />
-                  <View style={s.legendBadge}>
-                    <Lock color={colors.primaryDeep} size={11} />
-                  </View>
-                  <Text style={s.legendText}>means this app already has a limit</Text>
+            {busiest && (
+              <View style={s.heroBreakdown}>
+                <View style={s.heroBreakdownHead}>
+                  <Text style={s.heroBreakdownLabel}>Most used</Text>
+                  <Text style={s.heroBreakdownValue}>
+                    {`${busiest.appLabel} · ${formatDuration(busiest.totalSeconds)}`}
+                  </Text>
                 </View>
-              </Card>
+                <ProgressBar progress={busiestShare} tone="accent" />
+              </View>
+            )}
 
-              <View style={s.listHead}>
-                <Text style={s.listHeadTitle}>All apps</Text>
-                <Text style={s.listHeadHint}>Tap to set a limit</Text>
+            <View style={s.legend}>
+              <View style={s.legendItem}>
+                <View style={[s.legendSwatch, s.swatchRunning]} />
+                <Text style={s.legendText}>Limit set</Text>
+              </View>
+              <View style={s.legendItem}>
+                <View style={[s.legendSwatch, s.swatchLocked]} />
+                <Text style={s.legendText}>Locked now</Text>
               </View>
             </View>
-          }
+          </Card>
+
+          <View style={s.listHead}>
+            <Text style={s.listHeadTitle}>All apps</Text>
+            <Text style={s.listHeadHint}>Tap to set a limit</Text>
+          </View>
+        </View>
+      }
       renderItem={({ item }) => {
         const share = total > 0 ? item.totalSeconds / total : 0;
-        const hasLimit = limited.has(item.packageName);
+        const state = limitStateFor(item.packageName);
 
         return (
           <Pressable
@@ -146,7 +175,12 @@ export default function TodayScreen() {
                 appLabel: item.appLabel,
               })
             }
-            style={s.row}>
+            style={({ pressed }) => [
+              s.row,
+              state === 'running' && s.rowRunning,
+              state === 'locked' && s.rowLocked,
+              pressed && s.rowPressed,
+            ]}>
             <AppIcon packageName={item.packageName} size={iconSize.sm} />
 
             <View style={s.rowBody}>
@@ -156,20 +190,16 @@ export default function TodayScreen() {
                 </Text>
                 <Text style={s.duration}>{formatDuration(item.totalSeconds)}</Text>
               </View>
-              <ProgressBar progress={share} height={4} />
+              <ProgressBar
+                progress={share}
+                height={4}
+                tone={state === 'locked' ? 'blocked' : 'accent'}
+              />
             </View>
-
-             {hasLimit && (
-              <View style={s.limitBadge}>
-                <Lock color={colors.primaryDeep} size={12} />
-              </View>
-            )}
           </Pressable>
         );
       }}
-      ListEmptyComponent={
-        <Text style={s.empty}>No usage data yet today.</Text>
-      }
+      ListEmptyComponent={<Text style={s.empty}>No usage data yet today.</Text>}
     />
   );
 }
@@ -195,11 +225,30 @@ function makeStyles(c: Palette) {
     heroBreakdownLabel: { ...typeScale.micro, color: c.textFaint },
     heroBreakdownValue: { ...typeScale.caption, color: c.text },
 
+    legend: {
+      flexDirection: 'row',
+      gap: spacing.lg,
+      marginTop: spacing.lg,
+      paddingTop: spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: c.border,
+    },
+    legendItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    legendSwatch: {
+      width: 14,
+      height: 14,
+      borderRadius: 4,
+      borderWidth: 2,
+    },
+    swatchRunning: { borderColor: c.primaryBorder, backgroundColor: c.primarySoft },
+    swatchLocked: { borderColor: c.blockedBorder, backgroundColor: c.blockedSoft },
+    legendText: { ...typeScale.micro, color: c.textFaint },
+
     listHead: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'baseline',
-      paddingHorizontal: spacing.xs,
+      paddingHorizontal: spacing.lg,
     },
     listHeadTitle: { ...typeScale.bodyStrong, color: c.text },
     listHeadHint: { ...typeScale.micro, color: c.textFaint },
@@ -208,9 +257,19 @@ function makeStyles(c: Palette) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.md,
-      paddingHorizontal: spacing.lg,
+      marginHorizontal: spacing.lg,
+      marginBottom: spacing.sm,
+      paddingHorizontal: spacing.md,
       paddingVertical: spacing.md,
+      borderRadius: radius.md,
+      borderWidth: 1.5,
+      borderColor: 'transparent',
+      backgroundColor: c.bg,
     },
+    rowRunning: { borderColor: c.primaryBorder, backgroundColor: c.surface },
+    rowLocked: { borderColor: c.blockedBorder, backgroundColor: c.blockedSoft },
+    rowPressed: { opacity: 0.7 },
+
     rowBody: { flex: 1, gap: spacing.sm },
     rowTop: {
       flexDirection: 'row',
@@ -219,35 +278,11 @@ function makeStyles(c: Palette) {
       gap: spacing.sm,
     },
     appLabel: { flex: 1, ...typeScale.body, color: c.text },
-    duration: { ...typeScale.caption, color: c.textMuted, fontVariant: ['tabular-nums'] },
-
-       limitBadge: {
-      width: 22,
-      height: 22,
-      borderRadius: radius.pill,
-      backgroundColor: c.primarySoft,
-      alignItems: 'center',
-      justifyContent: 'center',
+    duration: {
+      ...typeScale.caption,
+      color: c.textMuted,
+      fontVariant: ['tabular-nums'],
     },
-
-    legend: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-      marginTop: spacing.lg,
-      paddingTop: spacing.md,
-      borderTopWidth: 1,
-      borderTopColor: c.border,
-    },
-    legendBadge: {
-      width: 20,
-      height: 20,
-      borderRadius: radius.pill,
-      backgroundColor: c.primarySoft,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-       legendText: { ...typeScale.micro, color: c.textFaint, flex: 1 },
 
     empty: {
       padding: spacing.xl,

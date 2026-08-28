@@ -16,6 +16,8 @@ import Navigation from './src/navigation';
 import { ThemeProvider, useTheme } from './src/theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import OnboardingScreen from './src/screens/onboarding/OnboardingScreen';
+import { ToastProvider } from './src/components/Toast';
+
 
 function AppShell() {
   const { colors, isDark } = useTheme();
@@ -71,7 +73,7 @@ function AppShell() {
     <>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       {needsOnboarding ? (
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+         <SafeAreaView style={[styles.flex, { backgroundColor: colors.bg }]}>
           <OnboardingScreen onDone={finishOnboarding} />
         </SafeAreaView>
       ) : (
@@ -85,13 +87,16 @@ export default function App() {
   return (
     <ThemeProvider>
       <SafeAreaProvider>
-        <AppShell />
+        <ToastProvider>
+          <AppShell />
+        </ToastProvider>
       </SafeAreaProvider>
     </ThemeProvider>
   );
-}
+} 
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
   center: {
     flex: 1,
     justifyContent: 'center',

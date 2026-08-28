@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   Pressable,
   Switch,
   StyleSheet,
-  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useLimitsStore } from '../../store/limitsStore';
@@ -17,6 +16,10 @@ import AppIcon from '../../components/AppIcon';
 import Card from '../../components/Card';
 import ProgressBar from '../../components/ProgressBar';
 import EmptyState from '../../components/EmptyState';
+import { Play, PauseCircle } from 'lucide-react-native';
+import ConfirmModal from '../../components/ConfirmModal';
+import { useToast } from '../../components/Toast';
+
 import {
   useTheme,
   spacing,
@@ -39,7 +42,7 @@ export default function AppListScreen() {
   const nav = useNavigation<any>();
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
-
+  
   const { limits, load, toggle } = useLimitsStore();
   const live = useLiveLimits();
 
@@ -59,28 +62,20 @@ export default function AppListScreen() {
     [live],
   );
 
-  const confirmToggle = (item: AppLimit, next: boolean) => {
-    if (next) {
-      Alert.alert(
-        'Enable this limit?',
-        `${item.appLabel} will be limited to ${formatDuration(
-          item.allowanceSeconds,
-        )}, then locked for ${formatDuration(item.lockSeconds)}.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Enable', onPress: () => toggle(item.packageName, true) },
-        ],
-      );
-    } else {
-      Alert.alert(
-        'Disable this limit?',
-        `${item.appLabel} will move to Paused. Your settings are kept, and nothing will be blocked until you turn it back on.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Disable', onPress: () => toggle(item.packageName, false) },
-        ],
-      );
-    }
+    const toast = useToast();
+  const [pending, setPending] = useState<{ item: AppLimit; next: boolean } | null>(
+    null,
+  );
+
+  const runToggle = async () => {
+    if (!pending) return;
+    const { item, next } = pending;
+    setPending(null);
+    await toggle(item.packageName, next);
+    toast.show(
+      next ? `${item.appLabel} limit enabled` : `${item.appLabel} moved to Paused`,
+      next ? 'success' : 'info',
+    );
   };
 
   const sections = useMemo(() => {
@@ -188,9 +183,9 @@ export default function AppListScreen() {
                   </Text>
                 </View>
 
-                <Switch
+                 <Switch
                   value={item.isActive}
-                  onValueChange={v => confirmToggle(item, v)}
+                  onValueChange={v => setPending({ item, next: v })}
                   disabled={locked}
                   trackColor={{ true: colors.primary, false: colors.disabled }}
                 />
@@ -231,6 +226,33 @@ export default function AppListScreen() {
       <Pressable onPress={() => nav.navigate('AppPicker')} style={s.fab}>
         <Text style={s.fabIcon}>+</Text>
       </Pressable>
+
+          <ConfirmModal
+        visible={pending !== null}
+        tone={pending?.next ? 'primary' : 'blocked'}
+        icon={
+          pending?.next ? (
+            <Play color={colors.primary} size={22} />
+          ) : (
+            <PauseCircle color={colors.blocked} size={22} />
+          )
+        }
+        title={pending?.next ? 'Enable this limit?' : 'Pause this limit?'}
+        body={
+          pending
+            ? pending.next
+              ? `${pending.item.appLabel} will be limited to ${formatDuration(
+                  pending.item.allowanceSeconds,
+                )}, then locked for ${formatDuration(pending.item.lockSeconds)}.`
+              : `${pending.item.appLabel} moves to Paused. Your settings are kept, and nothing will be blocked until you turn it back on.`
+            : ''
+        }
+        confirmLabel={pending?.next ? 'Enable' : 'Pause'}
+        onConfirm={runToggle}
+        onCancel={() => setPending(null)}
+      />
+
+      
     </View>
   );
 }

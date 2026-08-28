@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { View, StyleSheet } from 'react-native';
 import {
   NavigationContainer,
   DefaultTheme,
@@ -17,68 +18,97 @@ import HistoryScreen from '../screens/records/HistoryScreen';
 import InsightsScreen from '../screens/records/InsightsScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import AppHeader from '../components/AppHeader';
-import { useTheme } from '../theme';
+import { useTheme, radius } from '../theme';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
+type IconProps = { color: string; size: number; focused: boolean };
+
+const styles = StyleSheet.create({
+  iconWrap: {
+    width: 44,
+    height: 30,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+
+/** Wraps a tab icon in a pill that fills when the tab is active. */
+function makeTabIcon(
+  Icon: typeof Clock,
+  activeBg: string,
+) {
+  return function TabIcon({ color, size, focused }: IconProps) {
+    return (
+      <View
+        style={[
+          styles.iconWrap,
+          focused && { backgroundColor: activeBg },
+        ]}>
+        <Icon color={color} size={size - 3} />
+      </View>
+    );
+  };
+}
+
+const renderHeader = () => <AppHeader />;
+
 function Tabs() {
   const { colors } = useTheme();
+
+  const icons = useMemo(
+    () => ({
+      today: makeTabIcon(Clock, colors.primarySoft),
+      limits: makeTabIcon(Hourglass, colors.primarySoft),
+      history: makeTabIcon(BarChart3, colors.primarySoft),
+      insights: makeTabIcon(Flame, colors.primarySoft),
+      settings: makeTabIcon(Settings2, colors.primarySoft),
+    }),
+    [colors.primarySoft],
+  );
 
   return (
     <Tab.Navigator
       screenOptions={{
-        header: () => <AppHeader />,
-        tabBarActiveTintColor: colors.primary,
+        header: renderHeader,
+        tabBarActiveTintColor: colors.primaryDeep,
         tabBarInactiveTintColor: colors.textFaint,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600', marginTop: 2 },
         tabBarStyle: {
-          backgroundColor: colors.surface,
+          backgroundColor: colors.bgElevated,
           borderTopColor: colors.border,
-          height: 62,
-          paddingTop: 6,
-          paddingBottom: 8,
+          borderTopWidth: 1,
+          height: 66,
+          paddingTop: 8,
+          paddingBottom: 10,
         },
       }}>
       <Tab.Screen
         name="Today"
         component={TodayScreen}
-        options={{
-          title: 'Today',
-          tabBarIcon: ({ color, size }) => <Clock color={color} size={size - 2} />,
-        }}
+        options={{ title: 'Today', tabBarIcon: icons.today }}
       />
       <Tab.Screen
         name="Apps"
         component={AppListScreen}
-        options={{
-          title: 'Limits',
-          tabBarIcon: ({ color, size }) => <Hourglass color={color} size={size - 2} />,
-        }}
+        options={{ title: 'Limits', tabBarIcon: icons.limits }}
       />
       <Tab.Screen
         name="History"
         component={HistoryScreen}
-        options={{
-          title: 'History',
-          tabBarIcon: ({ color, size }) => <BarChart3 color={color} size={size - 2} />,
-        }}
+        options={{ title: 'History', tabBarIcon: icons.history }}
       />
       <Tab.Screen
         name="Insights"
         component={InsightsScreen}
-        options={{
-          title: 'Insights',
-          tabBarIcon: ({ color, size }) => <Flame color={color} size={size - 2} />,
-        }}
+        options={{ title: 'Insights', tabBarIcon: icons.insights }}
       />
       <Tab.Screen
         name="Settings"
         component={SettingsScreen}
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ color, size }) => <Settings2 color={color} size={size - 2} />,
-        }}
+        options={{ title: 'Settings', tabBarIcon: icons.settings }}
       />
     </Tab.Navigator>
   );
@@ -95,7 +125,7 @@ export default function Navigation() {
         ...base.colors,
         primary: colors.primary,
         background: colors.bg,
-        card: colors.surface,
+        card: colors.bgElevated,
         text: colors.text,
         border: colors.border,
       },
@@ -106,7 +136,7 @@ export default function Navigation() {
     <NavigationContainer theme={navTheme}>
       <Stack.Navigator
         screenOptions={{
-          headerStyle: { backgroundColor: colors.bg },
+          headerStyle: { backgroundColor: colors.bgElevated },
           headerTintColor: colors.text,
           headerShadowVisible: false,
           contentStyle: { backgroundColor: colors.bg },

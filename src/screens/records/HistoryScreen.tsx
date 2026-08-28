@@ -106,8 +106,8 @@ export default function HistoryScreen() {
             noOfSections={4}
             yAxisThickness={0}
             xAxisThickness={0}
-            xAxisLabelTextStyle={{ fontSize: 9, color: colors.textFaint }}
-            yAxisTextStyle={{ fontSize: 10, color: colors.textFaint }}
+            xAxisLabelTextStyle={s.chartXLabel}
+            yAxisTextStyle={s.chartYLabel}
             hideRules
           />
         ) : (
@@ -143,7 +143,8 @@ function makeStyles(c: Palette) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     content: { padding: spacing.xl, gap: spacing.xl },
-
+    chartXLabel: { fontSize: 9, color: c.textFaint },
+    chartYLabel: { fontSize: 10, color: c.textFaint },
     pills: { flexDirection: 'row', gap: spacing.sm },
     pill: {
       paddingHorizontal: spacing.lg,
